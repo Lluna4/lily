@@ -27,7 +27,26 @@ struct buffer
 	void remove(int offset, int remove_size);
 	void allocate(size_t s);
 
-	buffer(const buffer&) = delete;
+	buffer(const buffer&src)
+	{
+		data = (char *)malloc(src.allocated);
+		std::memcpy(data, src.data, src.size);
+		size = src.size;
+		parse_consumed_size = src.parse_consumed_size;
+		allocated = src.allocated;
+		allocations = src.allocations;
+	}
+	buffer& operator=(const buffer& src)
+	{
+		data = (char *)malloc(src.allocated);
+		std::memcpy(data, src.data, src.size);
+		size = src.size;
+		parse_consumed_size = src.parse_consumed_size;
+		allocated = src.allocated;
+		allocations = src.allocations;
+
+		return *this;
+	}
 	~buffer()
 	{
 		if (allocated > 0)

@@ -1,5 +1,16 @@
 #include "mc_types.h"
 
+void minecraft::uuid::generate(std::string name)
+{
+	unsigned char *buff = (unsigned char *)calloc(17, sizeof(unsigned char));
+	EVP_MD_CTX *mdctx = EVP_MD_CTX_create();
+	EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
+	EVP_DigestUpdate(mdctx, name.c_str(), name.length());
+	EVP_DigestFinal_ex(mdctx, buff, nullptr);
+	EVP_MD_CTX_destroy(mdctx);
+	std::string buf((char *)buff);
+}
+
 minecraft::varint minecraft::read_varint(const char* addr)
 {
 	unsigned long result = 0;
@@ -38,4 +49,13 @@ size_t minecraft::write_varint(char *dest, unsigned long val)
 		count++;
 	} while (val != 0);
 	return count;
+}
+
+void minecraft::read_string(char *dat, minecraft::string &out)
+{
+	varint size = read_varint(dat);
+
+	dat += size.size;
+	out.data.write(dat, size.num);
+	out.size = (size.size + size.num);
 }

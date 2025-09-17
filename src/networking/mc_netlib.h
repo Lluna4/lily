@@ -18,7 +18,7 @@
 #include "buffer.h"
 #include "comp_time_read.h"
 #include "comp_time_write.h"
-#include "mc_types.h"
+#include "../mc_types.h"
 
 enum class server_error
 {
@@ -71,13 +71,14 @@ class server
 			recv_th.join();
 		}
 		server(const server&) = delete;
-
+		std::map<int, netlib::packet> get_packets();
+		void clear_packets();
 		std::expected<bool, server_error> open_server(const char *ip, unsigned short port);
+		void disconnect_client(int fd);
 
 
 	private:
 		void recv_thread();
-		void disconnect_client(int fd);
 		std::vector<int> connections;
 		std::map<int, netlib::packet> packets;
 		int fd;

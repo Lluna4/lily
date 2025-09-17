@@ -1,11 +1,15 @@
 cmake_minimum_required(VERSION 4.0)
-project(jelly)
+project(lily)
 
 set(CMAKE_CXX_STANDARD 23)
 
-add_executable(jelly main.cpp
-        mc_types.cpp
-        comp_time_write.cpp
-        epoll_utils.cpp
-        mc_netlib.cpp
+find_package(OpenSSL REQUIRED)
+
+add_executable(lily src/main.cpp
+        src/mc_types.cpp
+        src/networking/comp_time_write.cpp
+        src/networking/epoll_utils.cpp
+        src/networking/mc_netlib.cpp
 )
+
+target_link_libraries(lily PRIVATE OpenSSL::Crypto)

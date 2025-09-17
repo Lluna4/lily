@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <cstdint>
 #include "buffer.h"
-#include "mc_types.h"
+#include "../mc_types.h"
 #ifdef __FreeBSD__
 #include <sys/endian.h>
 #endif
@@ -84,12 +84,20 @@ inline minecraft::varint read_type<minecraft::varint>(char *v)
     return minecraft::read_varint(v);
 }
 
+template<>
+inline minecraft::string read_type<minecraft::string>(char *v)
+{
+    minecraft::string ret;
+    minecraft::read_string(v, ret);
+    return ret;
+}
+
 template<typename T>
 struct read_var
 {
     static T call(buffer<char>* v)
     {
-        if (typeid(T) == typeid(minecraft::varint))
+        if constexpr (typeid(T) == typeid(minecraft::varint) || typeid(T) == typeid(minecraft::string))
         {
             if (5 + v->parse_consumed_size > v->size)
                 return T{};
@@ -99,14 +107,14 @@ struct read_var
             if (sizeof(T) + v->parse_consumed_size > v->size)
                 return T{};
         }
-        T ret = read_type<T>(v->data);
+        T ret = read_type<T>(v->extra);
         size_t add_size = 0;
-        if (typeid(T) == typeid(minecraft::varint))
+        if constexpr (typeid(T) == typeid(minecraft::varint) || typeid(T) == typeid(minecraft::string))
             add_size = ret.size;
         else
             add_size = sizeof(T);
 
-        v->data += add_size;
+        v->extra += add_size;
         v->parse_consumed_size += add_size;
         return ret;
     }
@@ -148,16 +156,24 @@ namespace netlib
     {
         packet(int i)
             :id(i)
+        {
+            size = 0;
+            header_size = 0;
+        }
+        packet (unsigned long s, unsigned long i, unsigned long header_s,buffer<char> buf)
+            :id(i), size(s),header_size(header_s) ,data(buf)
         {}
         unsigned long id;
         unsigned long size;
+        unsigned long header_size;
         buffer<char> data;
     };
     template<typename ...T>
-    std::tuple<T...> read_packet(std::tuple<T...> packet, buffer<char> &pkt)
+    std::tuple<T...> read_packet(std::tuple<T...> packet, netlib::packet &pkt)
     {
         constexpr std::size_t size = std::tuple_size_v<decltype(packet)>;
-        read_comp_pkt(size, pkt, packet);
+        pkt.data.extra = pkt.data.data + pkt.header_size;
+        read_comp_pkt(size, pkt.data, packet);
         return packet;
     }
 }

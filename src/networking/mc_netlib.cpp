@@ -17,7 +17,7 @@ void server::recv_thread()
 	int ev = 0;
 	while (threads == true)
 	{
-		ev = epoll_wait(epfd, events, 1024, 500);
+		ev = epoll_wait(epfd, events, 1024, 5);
 
 		for (int i = 0; i < ev; i++)
 		{
@@ -26,27 +26,28 @@ void server::recv_thread()
 			if (current_fd == fd)
 			{
 				int new_client = accept(fd, nullptr, nullptr);
+				add_to_epoll(epfd, new_client);
 				connections.push_back(new_client);
 				std::println("A client connected!");
 				continue;
 			}
-			buffer<char> pkt;
-			pkt.allocate(5); //max for 1 varint
-			int ret = recv(current_fd, pkt.data, 5, 0);
+			netlib::packet dummy_pkt(0);
+			dummy_pkt.data.allocate(5); //max for 1 varint
+			int ret = recv(current_fd, dummy_pkt.data.data, 5, 0);
 			if (ret == -1 || ret == 0)
 			{
 				disconnect_client(current_fd);
 				continue;
 			}
-			minecraft::varint size = minecraft::read_varint(pkt.data);
+			minecraft::varint size = minecraft::read_varint(dummy_pkt.data.data);
 
-			pkt.allocate(size.num + ret);
+			dummy_pkt.data.allocate(size.num + ret);
 
 			unsigned long already_read = ret;
 			bool cont = false;
 			while (already_read < size.num)
 			{
-				int r = recv(current_fd, &pkt.data[already_read], size.num - already_read, 0);
+				int r = recv(current_fd, &dummy_pkt.data.data[already_read], size.num - already_read, 0);
 				if (r == -1 || r == 0)
 				{
 					disconnect_client(current_fd);
@@ -57,20 +58,27 @@ void server::recv_thread()
 			}
 			if (cont == true)
 				continue;
-
+			dummy_pkt.data.size = already_read;
 			std::tuple<minecraft::varint, minecraft::varint> head;
-			head = netlib::read_packet(head, pkt);
-			pkt.extra = pkt.data + (std::get<0>(head).size + std::get<1>(head).size);
-			auto returned = packets.emplace(std::piecewise_construct, std::forward_as_tuple(current_fd), std::forward_as_tuple(std::get<1>(head).num));
-			if (returned.second == true)
-			{
-				returned.first->second.size = std::get<0>(head).num;
-				returned.first->second.data = pkt;
-				pkt.data = nullptr;
-				pkt.allocated = 0;
-			}
+
+			head = netlib::read_packet(head, dummy_pkt);
+			unsigned long header_size = (std::get<0>(head).size + std::get<1>(head).size);
+			std::lock_guard<std::mutex> lock(mut);
+			packets.emplace(std::piecewise_construct, std::forward_as_tuple(current_fd), std::forward_as_tuple(std::get<0>(head).num, std::get<1>(head).num, header_size, dummy_pkt.data));
 		}
 	}
+}
+
+std::map<int, netlib::packet> server::get_packets()
+{
+	std::lock_guard<std::mutex> lock(mut);
+	return packets;
+}
+
+void server::clear_packets()
+{
+	std::lock_guard<std::mutex> lock(mut);
+	packets.clear();
 }
 
 std::expected<bool, server_error> server::open_server(const char *ip, unsigned short port)
