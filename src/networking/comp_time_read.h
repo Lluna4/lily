@@ -99,7 +99,7 @@ struct read_var
     {
         if constexpr (typeid(T) == typeid(minecraft::varint) || typeid(T) == typeid(minecraft::string))
         {
-            if (5 + v->parse_consumed_size > v->size)
+            if (1 + v->parse_consumed_size > v->size)
                 return T{};
         }
         else
@@ -161,7 +161,7 @@ namespace netlib
             header_size = 0;
         }
         packet (unsigned long s, unsigned long i, unsigned long header_s,buffer<char> buf)
-            :id(i), size(s),header_size(header_s) ,data(buf)
+            :id(i), size(s),header_size(header_s) ,data(std::move(buf))
         {}
         unsigned long id;
         unsigned long size;

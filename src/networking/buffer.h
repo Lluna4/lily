@@ -15,6 +15,7 @@ struct buffer
 		allocated = 0;
 		allocations = 0;
 		parse_consumed_size = 0;
+		owner = true;
 	}
 	T *data;
 	T *extra;
@@ -22,34 +23,41 @@ struct buffer
 	size_t parse_consumed_size;
 	size_t allocated;
 	int allocations;
+	bool owner;
 
 	void write(T *data_in, size_t data_size);
 	void remove(int offset, int remove_size);
 	void allocate(size_t s);
 
-	buffer(const buffer&src)
+	buffer(const buffer&) = delete;
+	buffer& operator=(const buffer&) = delete;
+	buffer(buffer &&src)
 	{
-		data = (char *)malloc(src.allocated);
-		std::memcpy(data, src.data, src.size);
+		data = src.data;
+		extra = src.extra;
 		size = src.size;
 		parse_consumed_size = src.parse_consumed_size;
 		allocated = src.allocated;
 		allocations = src.allocations;
+		owner = true;
+		src.owner = false;
 	}
-	buffer& operator=(const buffer& src)
+	buffer& operator=(buffer &&src)
 	{
-		data = (char *)malloc(src.allocated);
-		std::memcpy(data, src.data, src.size);
+		data = src.data;
+		extra = src.extra;
 		size = src.size;
 		parse_consumed_size = src.parse_consumed_size;
 		allocated = src.allocated;
 		allocations = src.allocations;
+		owner = true;
+		src.owner = false;
 
 		return *this;
 	}
 	~buffer()
 	{
-		if (allocated > 0)
+		if (allocated > 0 && owner == true)
 			free(data);
 	}
 };

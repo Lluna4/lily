@@ -21,7 +21,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 		{
 			case 0:
 				std::tuple<minecraft::varint, minecraft::string, unsigned short, minecraft::varint> handshake;
-				handshake = netlib::read_packet(handshake, packet);
+				handshake = netlib::read_packet(std::move(handshake), packet);
 				std::println("Received handshake packet with version {} address {} port {} intent {}", std::get<0>(handshake).num, std::get<1>(handshake).data.data, std::get<2>(handshake), std::get<3>(handshake).num);
 				if (std::get<0>(handshake).num != 772)
 				{

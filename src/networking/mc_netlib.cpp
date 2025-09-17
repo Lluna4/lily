@@ -44,10 +44,11 @@ void server::recv_thread()
 			dummy_pkt.data.allocate(size.num + ret);
 
 			unsigned long already_read = ret;
+			unsigned long total_to_read = size.num + size.size;
 			bool cont = false;
-			while (already_read < size.num)
+			while (already_read < total_to_read)
 			{
-				int r = recv(current_fd, &dummy_pkt.data.data[already_read], size.num - already_read, 0);
+				int r = recv(current_fd, &dummy_pkt.data.data[already_read], total_to_read - already_read, 0);
 				if (r == -1 || r == 0)
 				{
 					disconnect_client(current_fd);
@@ -58,13 +59,14 @@ void server::recv_thread()
 			}
 			if (cont == true)
 				continue;
-			dummy_pkt.data.size = already_read;
+			dummy_pkt.data.size = total_to_read;
+
 			std::tuple<minecraft::varint, minecraft::varint> head;
 
 			head = netlib::read_packet(head, dummy_pkt);
 			unsigned long header_size = (std::get<0>(head).size + std::get<1>(head).size);
 			std::lock_guard<std::mutex> lock(mut);
-			packets.emplace(std::piecewise_construct, std::forward_as_tuple(current_fd), std::forward_as_tuple(std::get<0>(head).num, std::get<1>(head).num, header_size, dummy_pkt.data));
+			packets.emplace(std::piecewise_construct, std::forward_as_tuple(current_fd), std::forward_as_tuple(std::get<0>(head).num, std::get<1>(head).num, header_size, std::move(dummy_pkt.data)));
 		}
 	}
 }
@@ -72,7 +74,7 @@ void server::recv_thread()
 std::map<int, netlib::packet> server::get_packets()
 {
 	std::lock_guard<std::mutex> lock(mut);
-	return packets;
+	return std::move(packets);
 }
 
 void server::clear_packets()
