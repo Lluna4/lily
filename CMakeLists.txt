@@ -7,7 +7,6 @@ find_package(OpenSSL REQUIRED)
 
 add_executable(lily src/main.cpp
         src/mc_types.cpp
-        src/networking/comp_time_write.cpp
         src/networking/epoll_utils.cpp
         src/networking/mc_netlib.cpp
 )

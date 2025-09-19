@@ -2,7 +2,8 @@
 #include <cstdlib>
 #include <stdexcept>
 #include <cstring>
-#define BUFFER_SIZE 1024
+#include <print>
+#define BUFFER_SIZE 64
 
 template<typename T>
 struct buffer
@@ -25,7 +26,7 @@ struct buffer
 	int allocations;
 	bool owner;
 
-	void write(T *data_in, size_t data_size);
+	void write(const void *data_in, size_t data_size);
 	void remove(int offset, int remove_size);
 	void allocate(size_t s);
 
@@ -52,18 +53,20 @@ struct buffer
 		allocations = src.allocations;
 		owner = true;
 		src.owner = false;
-
 		return *this;
 	}
 	~buffer()
 	{
 		if (allocated > 0 && owner == true)
+		{
+			//std::println("Freed {}B of data", allocated);
 			free(data);
+		}
 	}
 };
 
 template<typename T>
-void buffer<T>::write(T *data_in, size_t data_size)
+void buffer<T>::write(const void *data_in, size_t data_size)
 {
 	if (data_size > allocated - size)
 	{

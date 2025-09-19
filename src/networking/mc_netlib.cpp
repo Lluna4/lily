@@ -2,7 +2,8 @@
 
 void server::disconnect_client(int fd)
 {
-	packets.emplace(std::piecewise_construct, std::forward_as_tuple(fd), std::forward_as_tuple(-1));
+	std::lock_guard lock(mut);
+	packets.emplace_back(-1, fd);
 	if (remove_from_epoll(epfd, fd) == -1)
 	{
 		std::println("Removing from epoll failed {}", strerror(errno));
@@ -17,7 +18,7 @@ void server::recv_thread()
 	int ev = 0;
 	while (threads == true)
 	{
-		ev = epoll_wait(epfd, events, 1024, 5);
+		ev = epoll_wait(epfd, events, 1024, 10);
 
 		for (int i = 0; i < ev; i++)
 		{
@@ -25,7 +26,7 @@ void server::recv_thread()
 
 			if (current_fd == fd)
 			{
-				int new_client = accept(fd, nullptr, nullptr);
+				int new_client = accept4(fd, nullptr, nullptr, SOCK_NONBLOCK);
 				add_to_epoll(epfd, new_client);
 				connections.push_back(new_client);
 				std::println("A client connected!");
@@ -60,21 +61,15 @@ void server::recv_thread()
 			if (cont == true)
 				continue;
 			dummy_pkt.data.size = total_to_read;
-
+			std::println("Read a packet with size {}", total_to_read);
 			std::tuple<minecraft::varint, minecraft::varint> head;
 
 			head = netlib::read_packet(head, dummy_pkt);
 			unsigned long header_size = (std::get<0>(head).size + std::get<1>(head).size);
 			std::lock_guard<std::mutex> lock(mut);
-			packets.emplace(std::piecewise_construct, std::forward_as_tuple(current_fd), std::forward_as_tuple(std::get<0>(head).num, std::get<1>(head).num, header_size, std::move(dummy_pkt.data)));
+			packets.emplace_back(std::get<0>(head).num, std::get<1>(head).num, header_size, std::move(dummy_pkt.data), current_fd);
 		}
 	}
-}
-
-std::map<int, netlib::packet> server::get_packets()
-{
-	std::lock_guard<std::mutex> lock(mut);
-	return std::move(packets);
 }
 
 void server::clear_packets()
@@ -117,6 +112,7 @@ std::expected<bool, server_error> server::open_server(const char *ip, unsigned s
 
 	epfd = epoll_create1(0);
 	add_to_epoll(epfd, fd);
+	threads = true;
 	recv_th = std::thread([this]() {this->recv_thread();});
 	std::println("Started receiving thread!");
 	return true;

@@ -63,28 +63,30 @@ class server
 		server()
 		{
 			fd = 0;
-			threads = true;
 		}
 		~server()
 		{
-			threads = false;
-			recv_th.join();
+			if (threads == true)
+			{
+				threads = false;
+				recv_th.join();
+			}
 		}
 		server(const server&) = delete;
-		std::map<int, netlib::packet> get_packets();
+		//std::map<int, netlib::packet> get_packets();
 		void clear_packets();
 		std::expected<bool, server_error> open_server(const char *ip, unsigned short port);
 		void disconnect_client(int fd);
+		std::vector<netlib::packet> packets;
+		std::mutex mut;
 
 
 	private:
 		void recv_thread();
 		std::vector<int> connections;
-		std::map<int, netlib::packet> packets;
 		int fd;
 		int epfd;
 		std::thread recv_th;
-		std::mutex mut;
 		std::atomic_bool threads;
 
 };

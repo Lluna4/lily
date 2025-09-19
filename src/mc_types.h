@@ -8,6 +8,16 @@ namespace minecraft
 {
 	struct varint
 	{
+		varint()
+		{
+			num = 0;
+			size = 0;
+		}
+		explicit varint(int n)
+			:num(n)
+		{
+			size = 0;
+		}
 		unsigned long num;
 		size_t size;
 	};

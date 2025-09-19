@@ -9,6 +9,7 @@ void minecraft::uuid::generate(std::string name)
 	EVP_DigestFinal_ex(mdctx, buff, nullptr);
 	EVP_MD_CTX_destroy(mdctx);
 	std::string buf((char *)buff);
+	data = buf;
 }
 
 minecraft::varint minecraft::read_varint(const char* addr)
@@ -16,7 +17,7 @@ minecraft::varint minecraft::read_varint(const char* addr)
 	unsigned long result = 0;
 	int shift = 0;
 	std::size_t count = 0;
-	minecraft::varint ret = {0};
+	varint ret;
 
 	while (true)
 	{

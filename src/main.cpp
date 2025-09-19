@@ -33,6 +33,33 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 					u.state = STATE::STATUS;
 				else if (std::get<3>(handshake).num == 2)
 					u.state = STATE::LOGIN;
+				break;
+		}
+	}
+	else if (u.state == STATE::LOGIN)
+	{
+		switch (packet.id)
+		{
+			case 0x00:
+				minecraft::string res;
+				minecraft::read_string(packet.data.data + packet.header_size, res);
+				u.name = res.data.data;
+				u.uuid.generate(u.name);
+				auto login_success = std::make_tuple(u.uuid, u.name, minecraft::varint(0));
+				netlib::send_packet(login_success, u.fd, 0x02);
+				u.state = STATE::CONFIGURATION;
+				break;
+		}
+	}
+	else if (u.state == STATE::CONFIGURATION)
+	{
+		switch (packet.id)
+		{
+			case 0x00:
+				std::tuple<minecraft::string, char, minecraft::varint, bool, unsigned char, minecraft::varint, bool, bool, minecraft::varint> client_info;
+				client_info = netlib::read_packet(std::move(client_info), packet);
+
+				std::println("Locale {} View distance {}", std::get<0>(client_info).data.data, (int)std::get<1>(client_info));
 		}
 	}
 }
@@ -43,24 +70,26 @@ int main()
 	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
 	{
-		std::println("Opening server failed {}", ret.error());
+		std::println("Opening server failed: {}", ret.error());
 		return -1;
 	}
 
 	while (true)
 	{
-		auto pkts = sv.get_packets();
-		sv.clear_packets();
-		for (auto &pkt: pkts)
+		std::unique_lock lock(sv.mut);
+		for (auto &pkt: sv.packets)
 		{
-			if (pkt.second.id == -1)
+			if (pkt.id == -1)
 			{
 				std::println("Client disconnected");
+				users.erase(pkt.fd);
 				continue;
 			}
-			std::println("Got a packet from fd {} with id {} and size {}", pkt.first, pkt.second.id, pkt.second.size);
-			execute_packet(pkt.first, pkt.second, sv);
+			std::println("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size);
+			execute_packet(pkt.fd, pkt, sv);
 		}
+		sv.packets.clear();
+		lock.unlock();
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	}
 	return 0;

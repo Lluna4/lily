@@ -45,35 +45,53 @@ template <auto N, typename F> constexpr void const_for(F&& func)
 } 
 
 template <typename T>
-void write_type(char *v, T value)
+void write_type(buffer<char> *v, T value)
 {
     switch (sizeof(T))
     {
         case 2:
         {
             uint16_t conv = htobe16((*(uint16_t *)&value));
-            std::memcpy(v, &conv, sizeof(T));
+            v->write(&conv, sizeof(T));
             break;
         }
         case 4:
         {
             uint32_t conv = htobe32((*(uint32_t *)&value));
-            std::memcpy(v, &conv, sizeof(T));
+            v->write(&conv, sizeof(T));
             break;
         }
         case 8:
         {
             uint64_t conv = htobe64((*(uint64_t *)&value));
-            std::memcpy(v, &conv, sizeof(T));
+            v->write(&conv, sizeof(T));
             break;
         }
         default:
-            std::memcpy(v, &value, sizeof(T));
+            v->write(&value, sizeof(T));
     }
 }
 
-template <int size, typename T>
-void write_array(char *v, T value);
+template <>
+inline void write_type<minecraft::varint>(buffer<char> *v, minecraft::varint value)
+{
+    v->allocate(v->size + 5);
+    v->size += minecraft::write_varint(&v->data[v->size], value.num);
+}
+
+template <>
+inline void write_type<std::string>(buffer<char> *v, std::string value)
+{
+    v->allocate(v->size + 5);
+    v->size += minecraft::write_varint(&v->data[v->size], value.length());
+    v->write(value.c_str(), value.length());
+}
+
+template <>
+inline void write_type<minecraft::uuid>(buffer<char> *v, minecraft::uuid value)
+{
+    v->write(value.data.c_str(), value.data.length());
+}
 
 template<typename T>
 concept arithmetic = std::integral<T> or std::floating_point<T>;
@@ -87,79 +105,39 @@ concept IsPointer = std::is_pointer_v<T>;
 template<typename T>
 struct write_var
 {
-    static void call(buffer<char> *v, T value) requires (arithmetic<T>)
+    static void call(buffer<char> *v, T value)
     {
-        if (v->parse_consumed_size >= v->size || v->parse_consumed_size + sizeof(T) >= v->size)
-        {
-            v->allocate(v->size + 1024);
-            v->extra = v->data + v->parse_consumed_size;
-        }
-        write_type<T>(v->data, value);
-        v->extra += sizeof(T);
-        v->parse_consumed_size += sizeof(T);
+        write_type<T>(v, value);
     }
 };
-
-template<typename ...T>
-struct write_var<std::tuple<T...>>
-{
-    static void call(buffer<char> *v, std::tuple<T...> value)
-    {
-        constexpr std::size_t size = std::tuple_size_v<decltype(value)>;
-        write_comp_pkt(size, *v, value);
-    }
-};
-
-template<>
-struct write_var<std::string>
-{
-    static void call(buffer<char> *v, std::string value)
-    {
-        while (v->parse_consumed_size >= v->size || v->parse_consumed_size + value.size() >= v->size)
-        {
-            v->allocate(v->size + 1024);
-            v->extra = v->data + v->parse_consumed_size;
-        }
-        memcpy(v->data, value.c_str(), value.size());
-        v->extra += value.size();
-        v->parse_consumed_size += value.size();
-    }
-};
-
-
-template<typename T>
-struct write_var<std::vector<T, std::allocator<T>>>
-{
-    static void call(buffer<char> *v, std::vector<T, std::allocator<T>> value)
-    {
-        for (auto val : value)
-        {
-            std::tuple<T> va = val;
-            constexpr std::size_t size = std::tuple_size_v<decltype(va)>;
-            write_comp_pkt(size, *v, va);
-        }
-    }
-};
-
 
 namespace netlib
 {
     template<typename ...T>
-    int send_packet(std::tuple<T...> packet, int sock)
+    int send_packet(std::tuple<T...> packet, int sock, unsigned long id)
     {
         buffer<char> buf;
-        buf.allocate(1024);
-        buf.extra = buf.data;
         constexpr std::size_t size = std::tuple_size_v<decltype(packet)>;
         write_comp_pkt(size, buf, packet);
 
+        buffer<char> dummy;
+        dummy.allocate(5);
+        size_t id_size = minecraft::write_varint(dummy.data, id);
         buffer<char> header;
-        header.allocate(5); //the max size of a varint
-        header.size += minecraft::write_varint(header.data, buf.parse_consumed_size);
-        header.write(buf.data, buf.parse_consumed_size);
+        header.allocate(10); //the max size for 2 varints
+        header.size += minecraft::write_varint(header.data, buf.size + id_size);
+        header.size += minecraft::write_varint(&header.data[header.size], id);
+        header.write(buf.data, buf.size);
 
-        int ret = send(sock, buf.data, buf.parse_consumed_size, 0);
-        std::println("Sent {}B", ret);
-        return ret;
+    	int sent = 0;
+        while (sent < header.size)
+        {
+            int ret = send(sock, &header.data[sent], header.size - sent, 0);
+            if (ret == -1 || ret == 0)
+                return ret;
+            sent += ret;
+        }
+        std::println("Sent {}B", sent);
+        return sent;
     }
 }
