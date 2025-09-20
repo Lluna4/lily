@@ -25,16 +25,20 @@ class user
 			inventory.resize(46);
 			name = "Placeholder";
 			pronouns = "any";
+			locale = "en_us";
+			view_distance = 12;
 			uuid.generate(name);
 		}
 
 		STATE state;
 		int fd;
 		double x, y, z;
-		double yaw, pitch;
+		float yaw, pitch;
 		bool on_ground;
 		std::vector<unsigned long> inventory;
 		std::string name;
 		std::string pronouns;
+		std::string locale;
+		char view_distance;
 		minecraft::uuid uuid;
 };

@@ -1,0 +1,22 @@
+#pragma once
+
+enum handshake_arguments
+{
+	VERSION,
+	ADDRESS,
+	PORT,
+	INTENT
+};
+
+enum client_info
+{
+	LOCALE,
+	VIEW_DISTANCE,
+	CHAT_MODE,
+	CHAT_COLORS,
+	SKIN_PARTS,
+	MAIN_HAND,
+	TEXT_FILTERING,
+	ALLOW_SERVER_LISTINGS,
+	PARTICLES
+};

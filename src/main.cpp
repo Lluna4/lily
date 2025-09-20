@@ -3,8 +3,24 @@
 #include <map>
 #include "user.h"
 #include "networking/mc_netlib.h"
+#include "packet_arguments.h"
+#include <filesystem>
+#include <fcntl.h>
+#include <sys/sendfile.h>
 
 std::map<int, user> users;
+
+void registry_data(user &u)
+{
+	for (const auto &file: std::filesystem::recursive_directory_iterator("../Minecraft-DataRegistry-Packet-Generator/registries/1.21-registry/created-packets"))
+	{
+		int fd = open(file.path().c_str(), O_RDONLY);
+		off_t file_size = lseek(fd, 0, SEEK_END);
+		lseek(fd, 0, SEEK_SET);
+		sendfile(u.fd, fd, 0, file_size);
+		close(fd);
+	}
+}
 
 void execute_packet(int fd, netlib::packet &packet, server &sv)
 {
@@ -22,7 +38,8 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 			case 0:
 				std::tuple<minecraft::varint, minecraft::string, unsigned short, minecraft::varint> handshake;
 				handshake = netlib::read_packet(std::move(handshake), packet);
-				std::println("Received handshake packet with version {} address {} port {} intent {}", std::get<0>(handshake).num, std::get<1>(handshake).data.data, std::get<2>(handshake), std::get<3>(handshake).num);
+				std::println("Received handshake packet with version {} address {} port {} intent {}",
+					std::get<VERSION>(handshake).num, std::get<ADDRESS>(handshake).data.data, std::get<PORT>(handshake), std::get<INTENT>(handshake).num);
 				if (std::get<0>(handshake).num != 772)
 				{
 					sv.disconnect_client(fd);
@@ -41,14 +58,19 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 		switch (packet.id)
 		{
 			case 0x00:
+			{
 				minecraft::string res;
 				minecraft::read_string(packet.data.data + packet.header_size, res);
 				u.name = res.data.data;
 				u.uuid.generate(u.name);
 				auto login_success = std::make_tuple(u.uuid, u.name, minecraft::varint(0));
 				netlib::send_packet(login_success, u.fd, 0x02);
-				u.state = STATE::CONFIGURATION;
 				break;
+			}
+			case 0x03:
+			{
+				u.state = STATE::CONFIGURATION;
+			}
 		}
 	}
 	else if (u.state == STATE::CONFIGURATION)
@@ -56,10 +78,61 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 		switch (packet.id)
 		{
 			case 0x00:
+			{
 				std::tuple<minecraft::string, char, minecraft::varint, bool, unsigned char, minecraft::varint, bool, bool, minecraft::varint> client_info;
 				client_info = netlib::read_packet(std::move(client_info), packet);
 
-				std::println("Locale {} View distance {}", std::get<0>(client_info).data.data, (int)std::get<1>(client_info));
+				std::println("Locale {} View distance {}", std::get<LOCALE>(client_info).data.data, (int)std::get<VIEW_DISTANCE>(client_info));
+				u.locale = std::get<LOCALE>(client_info).data.data;
+				u.view_distance = std::get<VIEW_DISTANCE>(client_info);
+
+				auto known_packs = std::make_tuple(minecraft::varint(1), std::string("minecraft"), std::string("core"), std::string("1.21.8"));
+				netlib::send_packet(known_packs, fd, 0x0E);
+				registry_data(u);
+				netlib::send_packet(fd, 0x03);
+				break;
+			}
+
+			case 0x02:
+			{
+				std::tuple<minecraft::string> plugin_message;
+				plugin_message = netlib::read_packet(std::move(plugin_message), packet);
+				std::println("Plugin message sent from channel {}", std::get<0>(plugin_message).data.data);
+				break;
+			}
+			case 0x03:
+			{
+				u.state = STATE::PLAY;
+				auto login = std::make_tuple(fd, false,minecraft::varint(1) ,(std::string)"minecraft:overworld",
+											minecraft::varint(20), minecraft::varint(u.view_distance),
+											minecraft::varint(12), false, false, false, minecraft::varint(0),
+											(std::string)"minecraft:overworld", (long)128612, (unsigned char)0,
+											(char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
+											false);
+				netlib::send_packet(login, fd, 0x2B);
+				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
+												(double)0.0f, u.yaw, u.pitch, (int)0);
+				netlib::send_packet(sync_pos, fd, 0x41);
+			}
+		}
+	}
+	else if (u.state == STATE::LOGIN)
+	{
+		switch (packet.id)
+		{
+			case 0:
+			{
+				std::tuple<minecraft::varint> confirm_teleport;
+				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
+				if (std::get<0>(confirm_teleport).num != 1)
+				{
+					sv.disconnect_client(fd);
+					users.erase(fd);
+					break;
+				}
+				auto game_event = std::make_tuple((unsigned char)13, 0.0f);
+				netlib::send_packet(game_event, fd, 0x22);
+			}
 		}
 	}
 }

@@ -140,4 +140,27 @@ namespace netlib
         std::println("Sent {}B", sent);
         return sent;
     }
+
+    template<typename ...T>
+    int send_packet(int sock, unsigned long id)
+    {
+        buffer<char> dummy;
+        dummy.allocate(5);
+        size_t id_size = minecraft::write_varint(dummy.data, id);
+        buffer<char> header;
+        header.allocate(10); //the max size for 2 varints
+        header.size += minecraft::write_varint(header.data, id_size);
+        header.size += minecraft::write_varint(&header.data[header.size], id);
+
+        int sent = 0;
+        while (sent < header.size)
+        {
+            int ret = send(sock, &header.data[sent], header.size - sent, 0);
+            if (ret == -1 || ret == 0)
+                return ret;
+            sent += ret;
+        }
+        std::println("Sent {}B", sent);
+        return sent;
+    }
 }
