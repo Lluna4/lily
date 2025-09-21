@@ -4,12 +4,13 @@
 #include "user.h"
 #include "networking/mc_netlib.h"
 #include "packet_arguments.h"
+#include "registry.h"
 #include <filesystem>
 #include <fcntl.h>
-#include <sys/sendfile.h>
 
 std::map<int, user> users;
 
+/*
 void registry_data(user &u)
 {
 	for (const auto &file: std::filesystem::recursive_directory_iterator("../Minecraft-DataRegistry-Packet-Generator/registries/1.21-registry/created-packets"))
@@ -20,7 +21,7 @@ void registry_data(user &u)
 		sendfile(u.fd, fd, 0, file_size);
 		close(fd);
 	}
-}
+}*/
 
 void execute_packet(int fd, netlib::packet &packet, server &sv)
 {
@@ -88,7 +89,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 
 				auto known_packs = std::make_tuple(minecraft::varint(1), std::string("minecraft"), std::string("core"), std::string("1.21.8"));
 				netlib::send_packet(known_packs, fd, 0x0E);
-				registry_data(u);
+				send_registry(fd);
 				netlib::send_packet(fd, 0x03);
 				break;
 			}
@@ -116,12 +117,13 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 			}
 		}
 	}
-	else if (u.state == STATE::LOGIN)
+	else if (u.state == STATE::PLAY)
 	{
 		switch (packet.id)
 		{
-			case 0:
+			case 0x00:
 			{
+				std::println("teleport confirm");
 				std::tuple<minecraft::varint> confirm_teleport;
 				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
 				if (std::get<0>(confirm_teleport).num != 1)
@@ -132,6 +134,13 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				}
 				auto game_event = std::make_tuple((unsigned char)13, 0.0f);
 				netlib::send_packet(game_event, fd, 0x22);
+				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
+				netlib::send_packet(set_center_chunk, fd, 0x57);
+
+				/*auto chunk_data = std::make_tuple(0, 0, minecraft::varint(0), minecraft::varint(0), minecraft::varint(0),
+													minecraft::varint(0), minecraft::varint(0), minecraft::varint(0),
+													minecraft::varint(0), minecraft::varint(0), minecraft::varint(0));
+				netlib::send_packet(chunk_data, fd, 0x27);*/
 			}
 		}
 	}

@@ -14,19 +14,35 @@ void server::disconnect_client(int fd)
 
 void server::recv_thread()
 {
+	#if defined(__APPLE__) || defined(__FreeBSD__)
+	struct kevent events[1024];
+	struct timespec timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_nsec = 10000000;
+	#elif defined(__linux__)
 	epoll_event events[1024];
+	#endif
+
 	int ev = 0;
 	while (threads == true)
 	{
+		#if defined(__APPLE__) || defined(__FreeBSD__)
+		ev = kevent(epfd, NULL, 0, events, 1024, &timeout);
+		#elif defined(__linux__)
 		ev = epoll_wait(epfd, events, 1024, 10);
+		#endif
 
 		for (int i = 0; i < ev; i++)
 		{
+			#if defined(__APPLE__) || defined(__FreeBSD__)
+			int current_fd = events[i].ident;
+			#elif defined(__linux__)
 			int current_fd = events[i].data.fd;
+			#endif
 
 			if (current_fd == fd)
 			{
-				int new_client = accept4(fd, nullptr, nullptr, SOCK_NONBLOCK);
+				int new_client = accept(fd, nullptr, nullptr);
 				add_to_epoll(epfd, new_client);
 				connections.push_back(new_client);
 				std::println("A client connected!");
@@ -109,8 +125,11 @@ std::expected<bool, server_error> server::open_server(const char *ip, unsigned s
 		std::println("Listen failed! {}", strerror(errno));
 		return std::unexpected(server_error::LISTEN_ERROR);
 	}
-
+	#if defined(__APPLE__) || defined(__FreeBSD__)
+	epfd = kqueue();
+	#elif defined(__linux__)
 	epfd = epoll_create1(0);
+	#endif
 	add_to_epoll(epfd, fd);
 	threads = true;
 	recv_th = std::thread([this]() {this->recv_thread();});

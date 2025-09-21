@@ -163,4 +163,23 @@ namespace netlib
         std::println("Sent {}B", sent);
         return sent;
     }
+
+    template<typename ...T>
+    int send_packet_headless(std::tuple<T...> packet, int sock)
+    {
+        buffer<char> buf;
+        constexpr std::size_t size = std::tuple_size_v<decltype(packet)>;
+        write_comp_pkt(size, buf, packet);
+
+        int sent = 0;
+        while (sent < buf.size)
+        {
+            int ret = send(sock, &buf.data[sent], buf.size - sent, 0);
+            if (ret == -1 || ret == 0)
+                return ret;
+            sent += ret;
+        }
+        std::println("Sent {}B", sent);
+        return sent;
+    }
 }

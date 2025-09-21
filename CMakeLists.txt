@@ -9,6 +9,8 @@ add_executable(lily src/main.cpp
         src/mc_types.cpp
         src/networking/epoll_utils.cpp
         src/networking/mc_netlib.cpp
+        src/registry.cpp
+        src/registry.h
 )
 
 target_link_libraries(lily PRIVATE OpenSSL::Crypto)
