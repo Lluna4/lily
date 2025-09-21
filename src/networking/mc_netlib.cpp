@@ -2,7 +2,6 @@
 
 void server::disconnect_client(int fd)
 {
-	std::lock_guard lock(mut);
 	packets.emplace_back(-1, fd);
 	if (remove_from_epoll(epfd, fd) == -1)
 	{

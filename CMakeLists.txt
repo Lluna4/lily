@@ -11,6 +11,8 @@ add_executable(lily src/main.cpp
         src/networking/mc_netlib.cpp
         src/registry.cpp
         src/registry.h
+        src/chunk.cpp
+        src/chunk.h
 )
 
 target_link_libraries(lily PRIVATE OpenSSL::Crypto)

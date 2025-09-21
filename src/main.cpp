@@ -22,6 +22,15 @@ void registry_data(user &u)
 		close(fd);
 	}
 }*/
+template <typename ...T>
+void send_all_except_user(std::tuple<T...> packet, user &u, int id)
+{
+	for (auto &us: users)
+	{
+		if (us.first != u.fd)
+			netlib::send_packet(packet, u.fd, id);
+	}
+}
 
 void execute_packet(int fd, netlib::packet &packet, server &sv)
 {
@@ -126,21 +135,32 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				std::println("teleport confirm");
 				std::tuple<minecraft::varint> confirm_teleport;
 				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
-				if (std::get<0>(confirm_teleport).num != 1)
+				auto add_to_list = std::make_tuple((char)0x01, minecraft::varint(1), u.uuid, u.name, minecraft::varint(0));
+				send_all_except_user(add_to_list, u, 0x3F);
+				for (auto &us: users)
 				{
-					sv.disconnect_client(fd);
-					users.erase(fd);
-					break;
+					if (us.first != u.fd)
+					{
+						auto add_to_list_user = std::make_tuple((char)0x01, minecraft::varint(1), us.second.uuid, us.second.name, minecraft::varint(0));
+						netlib::send_packet(add_to_list_user, u.fd, 0x3F);
+					}
 				}
+
 				auto game_event = std::make_tuple((unsigned char)13, 0.0f);
 				netlib::send_packet(game_event, fd, 0x22);
 				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
 				netlib::send_packet(set_center_chunk, fd, 0x57);
-
-				/*auto chunk_data = std::make_tuple(0, 0, minecraft::varint(0), minecraft::varint(0), minecraft::varint(0),
-													minecraft::varint(0), minecraft::varint(0), minecraft::varint(0),
-													minecraft::varint(0), minecraft::varint(0), minecraft::varint(0));
-				netlib::send_packet(chunk_data, fd, 0x27);*/
+				chunk c(0, 0);
+				for (int y = -u.view_distance; y < u.view_distance; y++)
+				{
+					for (int x = -u.view_distance; x < u.view_distance; x++)
+					{
+						auto chunk_data = std::make_tuple(x, y, minecraft::varint(0),c, minecraft::varint(0),
+									minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
+									minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
+						netlib::send_packet(chunk_data, fd, 0x27);
+					}
+				}
 			}
 		}
 	}

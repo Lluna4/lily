@@ -93,6 +93,39 @@ inline void write_type<minecraft::uuid>(buffer<char> *v, minecraft::uuid value)
     v->write(value.data.c_str(), value.data.length());
 }
 
+template <>
+inline void write_type<chunk>(buffer<char> *v, chunk value)
+{
+    buffer<char> t;
+    for (auto &sec: value.sections)
+    {
+
+        t.write(&sec.non_air_blocks, sizeof(short));
+        t.data[t.size] = 8;
+        t.size++;
+        t.allocate(t.size + 5);
+        t.size += minecraft::write_varint(&t.data[t.size], sec.palette.size());
+        for (auto &p: sec.palette)
+        {
+            t.allocate(t.size + 5);
+            t.size += minecraft::write_varint(&t.data[t.size], p);
+        }
+        for (int i = 0; i < 512; i++)
+        {
+            int64_t tmp = 0;
+            memcpy(&tmp, &sec.blocks[i * 8], sizeof(int64_t));
+            t.write(&tmp, sizeof(int64_t));
+        }
+        t.data[t.size] = 0;
+        t.size++;
+        t.allocate(t.size + 5);
+        t.size += minecraft::write_varint(&t.data[t.size], 1);
+    }
+    v->allocate(v->size + 5);
+    v->size += minecraft::write_varint(&v->data[v->size], t.size);
+    v->write(t.data, t.size);
+}
+
 template<typename T>
 concept arithmetic = std::integral<T> or std::floating_point<T>;
 

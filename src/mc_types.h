@@ -3,6 +3,7 @@
 #include <openssl/evp.h>
 #include <string>
 #include "networking/buffer.h"
+#include "chunk.h"
 
 namespace minecraft
 {

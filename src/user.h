@@ -19,7 +19,7 @@ class user
 			:fd(sock)
 		{
 			state = STATE::HANDSHAKE;
-			x = 0.0f, y = 300.0f, z = 0.0f;
+			x = 0.0f, y = 65.0f, z = 0.0f;
 			yaw = 0.0f; pitch = 0.0f;
 			on_ground = false;
 			inventory.resize(46);
