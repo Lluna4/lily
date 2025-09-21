@@ -49,18 +49,17 @@ void server::recv_thread()
 			}
 			netlib::packet dummy_pkt(0);
 			dummy_pkt.data.allocate(5); //max for 1 varint
-			int ret = recv(current_fd, dummy_pkt.data.data, 5, 0);
+			int ret = recv(current_fd, dummy_pkt.data.data, 5, MSG_PEEK);
 			if (ret == -1 || ret == 0)
 			{
 				disconnect_client(current_fd);
 				continue;
 			}
 			minecraft::varint size = minecraft::read_varint(dummy_pkt.data.data);
-
-			dummy_pkt.data.allocate(size.num + ret);
-
-			unsigned long already_read = ret;
+			dummy_pkt.data.size = 0;
+			unsigned long already_read = 0;
 			unsigned long total_to_read = size.num + size.size;
+			dummy_pkt.data.allocate(total_to_read);
 			bool cont = false;
 			while (already_read < total_to_read)
 			{

@@ -123,18 +123,6 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
 												(double)0.0f, u.yaw, u.pitch, (int)0);
 				netlib::send_packet(sync_pos, fd, 0x41);
-			}
-		}
-	}
-	else if (u.state == STATE::PLAY)
-	{
-		switch (packet.id)
-		{
-			case 0x00:
-			{
-				std::println("teleport confirm");
-				std::tuple<minecraft::varint> confirm_teleport;
-				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
 				auto add_to_list = std::make_tuple((char)0x01, minecraft::varint(1), u.uuid, u.name, minecraft::varint(0));
 				send_all_except_user(add_to_list, u, 0x3F);
 				for (auto &us: users)
@@ -161,6 +149,19 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 						netlib::send_packet(chunk_data, fd, 0x27);
 					}
 				}
+			}
+		}
+	}
+	else if (u.state == STATE::PLAY)
+	{
+		switch (packet.id)
+		{
+			case 0x00:
+			{
+				std::println("teleport confirm");
+				std::tuple<minecraft::varint> confirm_teleport;
+				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
+
 			}
 		}
 	}

@@ -19,8 +19,8 @@ struct chunk
 			section sec;
 			if (i < 8)
 			{
-				sec.blocks.resize(4092);
-				sec.non_air_blocks = 4092;
+				sec.blocks.resize(4096);
+				sec.non_air_blocks = 4096;
 				sec.palette.push_back(9);
 				sec.palette.push_back(0);
 			}

@@ -99,22 +99,31 @@ inline void write_type<chunk>(buffer<char> *v, chunk value)
     buffer<char> t;
     for (auto &sec: value.sections)
     {
-
         t.write(&sec.non_air_blocks, sizeof(short));
-        t.data[t.size] = 8;
-        t.size++;
-        t.allocate(t.size + 5);
-        t.size += minecraft::write_varint(&t.data[t.size], sec.palette.size());
-        for (auto &p: sec.palette)
+        if (sec.non_air_blocks == 4096 && sec.palette.size() == 2)
         {
+            t.data[t.size] = 0;
+            t.size++;
             t.allocate(t.size + 5);
-            t.size += minecraft::write_varint(&t.data[t.size], p);
+            t.size += minecraft::write_varint(&t.data[t.size], sec.palette[0]);
         }
-        for (int i = 0; i < 512; i++)
+        else
         {
-            int64_t tmp = 0;
-            memcpy(&tmp, &sec.blocks[i * 8], sizeof(int64_t));
-            t.write(&tmp, sizeof(int64_t));
+            t.data[t.size] = 8;
+            t.size++;
+            t.allocate(t.size + 5);
+            t.size += minecraft::write_varint(&t.data[t.size], sec.palette.size());
+            for (auto &p: sec.palette)
+            {
+                t.allocate(t.size + 5);
+                t.size += minecraft::write_varint(&t.data[t.size], p);
+            }
+            for (int i = 0; i < 512; i++)
+            {
+                int64_t tmp = 0;
+                memcpy(&tmp, &sec.blocks[i * 8], sizeof(int64_t));
+                t.write(&tmp, sizeof(int64_t));
+            }
         }
         t.data[t.size] = 0;
         t.size++;
