@@ -36,6 +36,7 @@ class user
 		int fd;
 		double x, y, z;
 		float yaw, pitch;
+		double prev_x, prev_y, prev_z;
 		bool on_ground;
 		std::vector<unsigned long> inventory;
 		std::string name;

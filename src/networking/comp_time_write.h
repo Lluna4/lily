@@ -94,6 +94,26 @@ inline void write_type<minecraft::uuid>(buffer<char> *v, minecraft::uuid value)
 }
 
 template <>
+inline void write_type<minecraft::string_tag>(buffer<char> *v, minecraft::string_tag value)
+{
+    char start_comp = 0x0a;
+    char string_tag = 0x08;
+    std::string dummy_name = "text";
+    short dummy_name_size = 4;
+    dummy_name_size = htobe16(*(uint16_t*)&dummy_name_size);
+    short value_size = value.str.length();
+    value_size = htobe16(*(uint16_t*)&value_size);
+
+    v->write(&start_comp, 1);
+    v->write(&string_tag, 1);
+    v->write(&dummy_name_size, sizeof(short));
+    v->write(dummy_name.data(), 4);
+    v->write(&value_size, sizeof(short));
+    v->write(value.str.data(), value.str.length());
+    v->size++;
+}
+
+template <>
 inline void write_type<chunk>(buffer<char> *v, chunk value)
 {
     buffer<char> t;

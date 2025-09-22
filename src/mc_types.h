@@ -36,6 +36,11 @@ namespace minecraft
 		size_t size;
 	};
 
+	struct string_tag
+	{
+		std::string str;
+	};
+
 
 	varint read_varint(const char* addr);
 	size_t write_varint(char *dest, unsigned long val);

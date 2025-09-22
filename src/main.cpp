@@ -5,23 +5,8 @@
 #include "networking/mc_netlib.h"
 #include "packet_arguments.h"
 #include "registry.h"
-#include <filesystem>
-#include <fcntl.h>
-
 std::map<int, user> users;
 
-/*
-void registry_data(user &u)
-{
-	for (const auto &file: std::filesystem::recursive_directory_iterator("../Minecraft-DataRegistry-Packet-Generator/registries/1.21-registry/created-packets"))
-	{
-		int fd = open(file.path().c_str(), O_RDONLY);
-		off_t file_size = lseek(fd, 0, SEEK_END);
-		lseek(fd, 0, SEEK_SET);
-		sendfile(u.fd, fd, 0, file_size);
-		close(fd);
-	}
-}*/
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id)
 {
@@ -116,7 +101,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				auto login = std::make_tuple(fd, false,minecraft::varint(1) ,(std::string)"minecraft:overworld",
 											minecraft::varint(20), minecraft::varint(u.view_distance),
 											minecraft::varint(12), false, false, false, minecraft::varint(0),
-											(std::string)"minecraft:overworld", (long)128612, (unsigned char)0,
+											(std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
 											(char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
 											false);
 				netlib::send_packet(login, fd, 0x2B);
@@ -125,12 +110,22 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				netlib::send_packet(sync_pos, fd, 0x41);
 				auto add_to_list = std::make_tuple((char)0x01, minecraft::varint(1), u.uuid, u.name, minecraft::varint(0));
 				send_all_except_user(add_to_list, u, 0x3F);
+				auto spawn_entity = std::make_tuple(minecraft::varint(fd), u.uuid, minecraft::varint(149),
+													u.x, u.y, u.z, (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256),
+													(char)(u.yaw/360 * 256), minecraft::varint(0), (short)0,
+													(short)0, (short)0);
+				send_all_except_user(spawn_entity, u, 0x01);
 				for (auto &us: users)
 				{
 					if (us.first != u.fd)
 					{
 						auto add_to_list_user = std::make_tuple((char)0x01, minecraft::varint(1), us.second.uuid, us.second.name, minecraft::varint(0));
 						netlib::send_packet(add_to_list_user, u.fd, 0x3F);
+						auto spawn_entity_user = std::make_tuple(minecraft::varint(us.first), us.second.uuid, minecraft::varint(149),
+									us.second.x, us.second.y, us.second.z, (char)(us.second.pitch/360 * 256),
+									(char)(us.second.yaw/360 * 256),(char)(us.second.yaw/360 * 256), minecraft::varint(0), (short)0,
+									(short)0, (short)0);
+						netlib::send_packet(spawn_entity_user, fd, 0x01);
 					}
 				}
 
@@ -182,17 +177,27 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 			{
 				std::tuple<double, double, double, char> update_position;
 				update_position = netlib::read_packet(update_position, packet);
+				u.prev_x = u.x;
+				u.prev_y = u.y;
+				u.prev_z = u.z;
 				u.x = std::get<X>(update_position);
 				u.y = std::get<Y>(update_position);
 				u.z = std::get<Z>(update_position);
 				if (std::get<3>(update_position) == 0x01)
 					u.on_ground = true;
+
+				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
+															(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096), u.on_ground);
+				send_all_except_user(update_player_position, u, 0x2E);
 				break;
 			}
 			case 0x1E:
 			{
 				std::tuple<double, double, double, float, float ,char> update_position_rotation;
 				update_position_rotation = netlib::read_packet(update_position_rotation, packet);
+				u.prev_x = u.x;
+				u.prev_y = u.y;
+				u.prev_z = u.z;
 				u.x = std::get<X>(update_position_rotation);
 				u.y = std::get<Y>(update_position_rotation);
 				u.z = std::get<Z>(update_position_rotation);
@@ -200,6 +205,11 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				u.pitch = std::get<PITCH>(update_position_rotation);
 				if (std::get<FLAG>(update_position_rotation) == 0x01)
 					u.on_ground = true;
+
+				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
+											(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096),
+											(char)(u.yaw/360 * 256), (char)(u.pitch/360 * 256), u.on_ground);
+				send_all_except_user(update_player_position, u, 0x2F);
 				break;
 			}
 			case 0x1F:
@@ -244,7 +254,7 @@ void update_keep_alive(server &sv)
 	}
 }
 
-[[noreturn]] int main()
+int main()
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
