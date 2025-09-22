@@ -20,3 +20,14 @@ enum client_info
 	ALLOW_SERVER_LISTINGS,
 	PARTICLES
 };
+
+
+enum update_position_and_rotation
+{
+	X,
+	Y,
+	Z,
+	YAW,
+	PITCH,
+	FLAG,
+};

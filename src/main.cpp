@@ -149,6 +149,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 						netlib::send_packet(chunk_data, fd, 0x27);
 					}
 				}
+				break;
 			}
 		}
 	}
@@ -161,14 +162,92 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				std::println("teleport confirm");
 				std::tuple<minecraft::varint> confirm_teleport;
 				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
-
+				break;
+			}
+			case 0x1B:
+			{
+				std::tuple<long> keep_alive_response;
+				keep_alive_response = netlib::read_packet(keep_alive_response, packet);
+				if (std::get<0>(keep_alive_response) != 4 || u.sent == false)
+				{
+					sv.disconnect_client(fd);
+					users.erase(fd);
+					break;
+				}
+				u.ticks_to_keepalive = 500;
+				u.sent = false;
+				std::println("Received keep alive");
+			}
+			case 0x1D:
+			{
+				std::tuple<double, double, double, char> update_position;
+				update_position = netlib::read_packet(update_position, packet);
+				u.x = std::get<X>(update_position);
+				u.y = std::get<Y>(update_position);
+				u.z = std::get<Z>(update_position);
+				if (std::get<3>(update_position) == 0x01)
+					u.on_ground = true;
+				break;
+			}
+			case 0x1E:
+			{
+				std::tuple<double, double, double, float, float ,char> update_position_rotation;
+				update_position_rotation = netlib::read_packet(update_position_rotation, packet);
+				u.x = std::get<X>(update_position_rotation);
+				u.y = std::get<Y>(update_position_rotation);
+				u.z = std::get<Z>(update_position_rotation);
+				u.yaw = std::get<YAW>(update_position_rotation);
+				u.pitch = std::get<PITCH>(update_position_rotation);
+				if (std::get<FLAG>(update_position_rotation) == 0x01)
+					u.on_ground = true;
+				break;
+			}
+			case 0x1F:
+			{
+				std::tuple<float, float, char> update_rotation;
+				update_rotation = netlib::read_packet(update_rotation, packet);
+				u.yaw = std::get<0>(update_rotation);
+				u.pitch = std::get<1>(update_rotation);
+				if (std::get<2>(update_rotation) == 0x01)
+					u.on_ground = true;
+				break;
+			}
+			case 0x20:
+			{
+				std::tuple<char> update_flags;
+				update_flags = netlib::read_packet(update_flags, packet);
+				if (std::get<0>(update_flags) == 0x01)
+					u.on_ground = true;
 			}
 		}
 	}
 }
 
-int main()
+void update_keep_alive(server &sv)
 {
+	for (auto &u: users)
+	{
+		u.second.ticks_to_keepalive--;
+		if (u.second.ticks_to_keepalive == 0)
+		{
+			auto keep_alive = std::make_tuple((long)4);
+			netlib::send_packet(keep_alive, u.first, 0x26);
+			u.second.sent = true;
+			std::println("Sent keep alive");
+		}
+		if (u.second.ticks_to_keepalive == 3000)
+		{
+			sv.disconnect_client(u.first);
+			users.erase(u.first);
+			std::println("User timed out");
+		}
+	}
+}
+
+[[noreturn]] int main()
+{
+	using clock = std::chrono::system_clock;
+	using ms = std::chrono::duration<double, std::milli>;
 	server sv{};
 	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
@@ -179,6 +258,7 @@ int main()
 
 	while (true)
 	{
+		const auto before = clock::now();
 		std::unique_lock lock(sv.mut);
 		for (auto &pkt: sv.packets)
 		{
@@ -193,7 +273,11 @@ int main()
 		}
 		sv.packets.clear();
 		lock.unlock();
-		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		update_keep_alive(sv);
+		const ms duration = clock::now() - before;
+		//std::println("MSPT {}ms", duration.count());
+		if (duration.count() <= 50)
+			std::this_thread::sleep_for(std::chrono::milliseconds(50) - duration);
 	}
 	return 0;
 }

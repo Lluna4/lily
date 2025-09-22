@@ -28,6 +28,8 @@ class user
 			locale = "en_us";
 			view_distance = 12;
 			uuid.generate(name);
+			ticks_to_keepalive = 500;
+			sent = false;
 		}
 
 		STATE state;
@@ -41,4 +43,6 @@ class user
 		std::string locale;
 		char view_distance;
 		minecraft::uuid uuid;
+		int ticks_to_keepalive;
+		bool sent;
 };
