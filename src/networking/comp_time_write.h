@@ -103,6 +103,7 @@ inline void write_type<minecraft::string_tag>(buffer<char> *v, minecraft::string
     dummy_name_size = htobe16(*(uint16_t*)&dummy_name_size);
     short value_size = value.str.length();
     value_size = htobe16(*(uint16_t*)&value_size);
+    char zero = 0x00;
 
     v->write(&start_comp, 1);
     v->write(&string_tag, 1);
@@ -110,7 +111,7 @@ inline void write_type<minecraft::string_tag>(buffer<char> *v, minecraft::string
     v->write(dummy_name.data(), 4);
     v->write(&value_size, sizeof(short));
     v->write(value.str.data(), value.str.length());
-    v->size++;
+    v->write(&zero, sizeof(char));
 }
 
 template <>
@@ -191,16 +192,9 @@ namespace netlib
         header.size += minecraft::write_varint(&header.data[header.size], id);
         header.write(buf.data, buf.size);
 
-    	int sent = 0;
-        while (sent < header.size)
-        {
-            int ret = send(sock, &header.data[sent], header.size - sent, 0);
-            if (ret == -1 || ret == 0)
-                return ret;
-            sent += ret;
-        }
-        std::println("Sent {}B", sent);
-        return sent;
+        int ret = send(sock, header.data, header.size, 0);
+        std::println("Sent {}B", ret);
+        return ret;
     }
 
     template<typename ...T>

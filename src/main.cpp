@@ -17,6 +17,15 @@ void send_all_except_user(std::tuple<T...> packet, user &u, int id)
 	}
 }
 
+template <typename ...T>
+void send_all(std::tuple<T...> packet, int id)
+{
+	for (auto &u: users)
+	{
+		netlib::send_packet(packet, u.first, id);
+	}
+}
+
 void execute_packet(int fd, netlib::packet &packet, server &sv)
 {
 	if (!users.contains(fd))
@@ -158,6 +167,17 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				std::tuple<minecraft::varint> confirm_teleport;
 				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
 				break;
+			}
+			case 0x08:
+			{
+				std::tuple<minecraft::string> chat_message;
+				chat_message = netlib::read_packet(std::move(chat_message), packet);
+
+				auto message = std::make_tuple(minecraft::string_tag(std::get<0>(chat_message).data.data),
+											minecraft::varint(1), std::string("chat.type.text"), minecraft::varint(2),
+											minecraft::varint(0), minecraft::varint(2),
+											minecraft::string_tag(std::format("{}<{}>", u.name, u.pronouns)), false);
+				send_all(message, 0x1D);
 			}
 			case 0x1B:
 			{

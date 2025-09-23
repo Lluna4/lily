@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <openssl/evp.h>
 #include <string>
+#include <utility>
 #include "networking/buffer.h"
 #include "chunk.h"
 
@@ -38,6 +39,9 @@ namespace minecraft
 
 	struct string_tag
 	{
+		explicit string_tag(std::string s)
+			:str(std::move(s))
+		{}
 		std::string str;
 	};
 
