@@ -88,6 +88,15 @@ inline void write_type<std::string>(buffer<char> *v, std::string value)
 }
 
 template <>
+inline void write_type<minecraft::short_string>(buffer<char> *v, minecraft::short_string value)
+{
+    short size = value.str.length();
+    size = htobe16(*(uint16_t*)&size);
+    v->write(&size, sizeof(short));
+    v->write(value.str.c_str(), value.str.length());
+}
+
+template <>
 inline void write_type<minecraft::uuid>(buffer<char> *v, minecraft::uuid value)
 {
     v->write(value.data.c_str(), value.data.length());
@@ -96,22 +105,28 @@ inline void write_type<minecraft::uuid>(buffer<char> *v, minecraft::uuid value)
 template <>
 inline void write_type<minecraft::string_tag>(buffer<char> *v, minecraft::string_tag value)
 {
-    char start_comp = 0x0a;
     char string_tag = 0x08;
-    std::string dummy_name = "text";
-    short dummy_name_size = 4;
+    std::string dummy_name = value.title;
+    short dummy_name_size = value.title.length();
     dummy_name_size = htobe16(*(uint16_t*)&dummy_name_size);
     short value_size = value.str.length();
     value_size = htobe16(*(uint16_t*)&value_size);
-    char zero = 0x00;
 
-    v->write(&start_comp, 1);
     v->write(&string_tag, 1);
     v->write(&dummy_name_size, sizeof(short));
-    v->write(dummy_name.data(), 4);
+    v->write(value.title.data(), value.title.length());
     v->write(&value_size, sizeof(short));
     v->write(value.str.data(), value.str.length());
-    v->write(&zero, sizeof(char));
+}
+
+template <>
+inline void write_type<minecraft::nameless_string_tag>(buffer<char> *v, minecraft::nameless_string_tag value)
+{
+    short value_size = value.str.length();
+    value_size = htobe16(*(uint16_t*)&value_size);
+
+    v->write(&value_size, sizeof(short));
+    v->write(value.str.data(), value.str.length());
 }
 
 template <>
@@ -193,7 +208,7 @@ namespace netlib
         header.write(buf.data, buf.size);
 
         int ret = send(sock, header.data, header.size, 0);
-        std::println("Sent {}B", ret);
+        //std::println("Sent {}B", ret);
         return ret;
     }
 

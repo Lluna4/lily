@@ -39,7 +39,24 @@ namespace minecraft
 
 	struct string_tag
 	{
-		explicit string_tag(std::string s)
+		explicit string_tag(std::string s, std::string t)
+			:str(std::move(s)), title(std::move(t))
+		{}
+		std::string str;
+		std::string title;
+	};
+
+	struct short_string
+	{
+		explicit short_string(std::string s)
+			:str(std::move(s))
+		{}
+		std::string str;
+	};
+
+	struct nameless_string_tag
+	{
+		explicit nameless_string_tag(std::string s)
 			:str(std::move(s))
 		{}
 		std::string str;

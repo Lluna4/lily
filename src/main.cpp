@@ -6,6 +6,7 @@
 #include "packet_arguments.h"
 #include "registry.h"
 std::map<int, user> users;
+int chat_id = 0;
 
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id)
@@ -92,7 +93,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 
 				auto known_packs = std::make_tuple(minecraft::varint(1), std::string("minecraft"), std::string("core"), std::string("1.21.8"));
 				netlib::send_packet(known_packs, fd, 0x0E);
-				send_registry(fd);
+				chat_id = send_registry(fd);
 				netlib::send_packet(fd, 0x03);
 				break;
 			}
@@ -172,12 +173,11 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 			{
 				std::tuple<minecraft::string> chat_message;
 				chat_message = netlib::read_packet(std::move(chat_message), packet);
-
-				auto message = std::make_tuple(minecraft::string_tag(std::get<0>(chat_message).data.data),
-											minecraft::varint(1), std::string("chat.type.text"), minecraft::varint(2),
-											minecraft::varint(0), minecraft::varint(2),
-											minecraft::string_tag(std::format("{}<{}>", u.name, u.pronouns)), false);
+				std::println("{}", chat_id);
+				auto message = std::make_tuple((char)0x0a, minecraft::string_tag(std::get<0>(chat_message).data.data, "text"), (char)0x00,
+											minecraft::varint(chat_id + 1), (char)0x0a, minecraft::string_tag(std::format("{} [{}]", u.name, u.pronouns), "text"), (char)0x00, false);
 				send_all(message, 0x1D);
+				break;
 			}
 			case 0x1B:
 			{
