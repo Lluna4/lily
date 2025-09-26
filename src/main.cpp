@@ -13,8 +13,12 @@ void send_all_except_user(std::tuple<T...> packet, user &u, int id)
 {
 	for (auto &us: users)
 	{
-		if (us.first != u.fd)
-			netlib::send_packet(packet, u.fd, id);
+		std::println("Checking user {}", us.second.fd);
+		if (us.second.fd != u.fd && us.second.state == STATE::PLAY)
+		{
+			std::println("Sending to user {}", us.second.fd);
+			netlib::send_packet(packet, us.second.fd, id);
+		}
 	}
 }
 
@@ -127,13 +131,13 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				send_all_except_user(spawn_entity, u, 0x01);
 				for (auto &us: users)
 				{
-					if (us.first != u.fd)
+					if (us.second.fd != u.fd)
 					{
 						auto add_to_list_user = std::make_tuple((char)0x01, minecraft::varint(1), us.second.uuid, us.second.name, minecraft::varint(0));
-						netlib::send_packet(add_to_list_user, u.fd, 0x3F);
-						auto spawn_entity_user = std::make_tuple(minecraft::varint(us.first), us.second.uuid, minecraft::varint(149),
-									us.second.x, us.second.y, us.second.z, (char)(us.second.pitch/360 * 256),
-									(char)(us.second.yaw/360 * 256),(char)(us.second.yaw/360 * 256), minecraft::varint(0), (short)0,
+						netlib::send_packet(add_to_list_user, fd, 0x3F);
+						auto spawn_entity_user = std::make_tuple(minecraft::varint(us.second.fd), us.second.uuid, minecraft::varint(149),
+									us.second.x, us.second.y, us.second.z, (char)((us.second.pitch/360) * 256),
+									(char)((us.second.yaw/360) * 256),(char)((us.second.yaw/360) * 256), minecraft::varint(0), (short)0,
 									(short)0, (short)0);
 						netlib::send_packet(spawn_entity_user, fd, 0x01);
 					}
@@ -144,9 +148,9 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
 				netlib::send_packet(set_center_chunk, fd, 0x57);
 				chunk c(0, 0);
-				for (int y = -u.view_distance; y < u.view_distance; y++)
+				for (int y = -5; y < 5; y++)
 				{
-					for (int x = -u.view_distance; x < u.view_distance; x++)
+					for (int x = -5; x < 5; x++)
 					{
 						auto chunk_data = std::make_tuple(x, y, minecraft::varint(0),c, minecraft::varint(0),
 									minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
@@ -192,6 +196,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				u.ticks_to_keepalive = 500;
 				u.sent = false;
 				std::println("Received keep alive");
+				break;
 			}
 			case 0x1D:
 			{
@@ -228,8 +233,11 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 
 				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
 											(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096),
-											(char)(u.yaw/360 * 256), (char)(u.pitch/360 * 256), u.on_ground);
+											(char)((u.yaw/360) * 256), (char)((u.pitch/360) * 256), u.on_ground);
 				send_all_except_user(update_player_position, u, 0x2F);
+
+				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
+				send_all_except_user(update_head, u, 0x4C);
 				break;
 			}
 			case 0x1F:
@@ -240,6 +248,8 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				u.pitch = std::get<1>(update_rotation);
 				if (std::get<2>(update_rotation) == 0x01)
 					u.on_ground = true;
+				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
+				send_all_except_user(update_head, u, 0x4C);
 				break;
 			}
 			case 0x20:
@@ -248,6 +258,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				update_flags = netlib::read_packet(update_flags, packet);
 				if (std::get<0>(update_flags) == 0x01)
 					u.on_ground = true;
+				break;
 			}
 		}
 	}
@@ -279,7 +290,7 @@ int main()
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
 	server sv{};
-	auto ret = sv.open_server("0.0.0.0", 25565);
+	auto ret = sv.open_server("0.0.0.0", 25566);
 	if (!ret)
 	{
 		std::println("Opening server failed: {}", ret.error());

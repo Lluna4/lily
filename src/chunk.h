@@ -29,6 +29,7 @@ struct chunk
 				sec.blocks.resize(4092);
 				sec.non_air_blocks = 0;
 				sec.palette.push_back(0);
+				sec.palette.push_back(9);
 			}
 			sections.push_back(sec);
 		}

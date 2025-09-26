@@ -136,7 +136,7 @@ inline void write_type<chunk>(buffer<char> *v, chunk value)
     for (auto &sec: value.sections)
     {
         t.write(&sec.non_air_blocks, sizeof(short));
-        if (sec.non_air_blocks == 4096 && sec.palette.size() == 2)
+        if ((sec.non_air_blocks == 4096 || sec.non_air_blocks == 0) && sec.palette.size() == 2)
         {
             t.data[t.size] = 0;
             t.size++;
@@ -208,7 +208,7 @@ namespace netlib
         header.write(buf.data, buf.size);
 
         int ret = send(sock, header.data, header.size, 0);
-        //std::println("Sent {}B", ret);
+        std::println("Sent {}B", ret);
         return ret;
     }
 
