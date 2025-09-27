@@ -47,3 +47,4 @@ class user
 		int ticks_to_keepalive;
 		bool sent;
 };
+

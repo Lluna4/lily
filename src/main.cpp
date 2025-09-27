@@ -7,6 +7,7 @@
 #include "registry.h"
 std::map<int, user> users;
 int chat_id = 0;
+world w;
 
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id)
@@ -147,11 +148,11 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				netlib::send_packet(game_event, fd, 0x22);
 				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
 				netlib::send_packet(set_center_chunk, fd, 0x57);
-				chunk c(0, 0);
-				for (int y = -5; y < 5; y++)
+				for (int y = -u.view_distance; y < u.view_distance; y++)
 				{
-					for (int x = -5; x < 5; x++)
+					for (int x = -u.view_distance; x < u.view_distance; x++)
 					{
+						chunk &c = w.get_chunk(x, y);
 						auto chunk_data = std::make_tuple(x, y, minecraft::varint(0),c, minecraft::varint(0),
 									minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
 									minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));

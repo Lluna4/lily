@@ -135,7 +135,8 @@ inline void write_type<chunk>(buffer<char> *v, chunk value)
     buffer<char> t;
     for (auto &sec: value.sections)
     {
-        t.write(&sec.non_air_blocks, sizeof(short));
+        short non_air = htobe16(*(uint16_t*)&sec.non_air_blocks);
+        t.write(&non_air, sizeof(short));
         if ((sec.non_air_blocks == 4096 || sec.non_air_blocks == 0) && sec.palette.size() == 2)
         {
             t.data[t.size] = 0;
@@ -253,4 +254,6 @@ namespace netlib
         std::println("Sent {}B", sent);
         return sent;
     }
+
+
 }
