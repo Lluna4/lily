@@ -10,7 +10,7 @@ int chat_id = 0;
 world w;
 
 template <typename ...T>
-void send_all_except_user(std::tuple<T...> packet, user &u, int id)
+void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv)
 {
 	for (auto &us: users)
 	{
@@ -18,17 +18,17 @@ void send_all_except_user(std::tuple<T...> packet, user &u, int id)
 		if (us.second.fd != u.fd && us.second.state == STATE::PLAY)
 		{
 			std::println("Sending to user {}", us.second.fd);
-			netlib::send_packet(packet, us.second.fd, id);
+			sv.send_packet(packet, us.second.fd, id);
 		}
 	}
 }
 
 template <typename ...T>
-void send_all(std::tuple<T...> packet, int id)
+void send_all(std::tuple<T...> packet, int id, server &sv)
 {
 	for (auto &u: users)
 	{
-		netlib::send_packet(packet, u.first, id);
+		sv.send_packet(packet, u.first, id);
 	}
 }
 
@@ -74,7 +74,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				u.name = res.data.data;
 				u.uuid.generate(u.name);
 				auto login_success = std::make_tuple(u.uuid, u.name, minecraft::varint(0));
-				netlib::send_packet(login_success, u.fd, 0x02);
+				sv.send_packet(login_success, u.fd, 0x02);
 				break;
 			}
 			case 0x03:
@@ -97,9 +97,9 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				u.view_distance = std::get<VIEW_DISTANCE>(client_info);
 
 				auto known_packs = std::make_tuple(minecraft::varint(1), std::string("minecraft"), std::string("core"), std::string("1.21.8"));
-				netlib::send_packet(known_packs, fd, 0x0E);
-				chat_id = send_registry(fd);
-				netlib::send_packet(fd, 0x03);
+				sv.send_packet(known_packs, fd, 0x0E);
+				chat_id = send_registry(fd, sv);
+				sv.send_packet(fd, 0x03);
 				break;
 			}
 
@@ -119,35 +119,35 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 											(std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
 											(char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
 											false);
-				netlib::send_packet(login, fd, 0x2B);
+				sv.send_packet(login, fd, 0x2B);
 				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
 												(double)0.0f, u.yaw, u.pitch, (int)0);
-				netlib::send_packet(sync_pos, fd, 0x41);
+				sv.send_packet(sync_pos, fd, 0x41);
 				auto add_to_list = std::make_tuple((char)0x01, minecraft::varint(1), u.uuid, u.name, minecraft::varint(0));
-				send_all_except_user(add_to_list, u, 0x3F);
+				send_all_except_user(add_to_list, u, 0x3F, sv);
 				auto spawn_entity = std::make_tuple(minecraft::varint(fd), u.uuid, minecraft::varint(149),
 													u.x, u.y, u.z, (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256),
 													(char)(u.yaw/360 * 256), minecraft::varint(0), (short)0,
 													(short)0, (short)0);
-				send_all_except_user(spawn_entity, u, 0x01);
+				send_all_except_user(spawn_entity, u, 0x01, sv);
 				for (auto &us: users)
 				{
 					if (us.second.fd != u.fd)
 					{
 						auto add_to_list_user = std::make_tuple((char)0x01, minecraft::varint(1), us.second.uuid, us.second.name, minecraft::varint(0));
-						netlib::send_packet(add_to_list_user, fd, 0x3F);
+						sv.send_packet(add_to_list_user, fd, 0x3F);
 						auto spawn_entity_user = std::make_tuple(minecraft::varint(us.second.fd), us.second.uuid, minecraft::varint(149),
 									us.second.x, us.second.y, us.second.z, (char)((us.second.pitch/360) * 256),
 									(char)((us.second.yaw/360) * 256),(char)((us.second.yaw/360) * 256), minecraft::varint(0), (short)0,
 									(short)0, (short)0);
-						netlib::send_packet(spawn_entity_user, fd, 0x01);
+						sv.send_packet(spawn_entity_user, fd, 0x01);
 					}
 				}
 
 				auto game_event = std::make_tuple((unsigned char)13, 0.0f);
-				netlib::send_packet(game_event, fd, 0x22);
+				sv.send_packet(game_event, fd, 0x22);
 				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
-				netlib::send_packet(set_center_chunk, fd, 0x57);
+				sv.send_packet(set_center_chunk, fd, 0x57);
 				for (int y = -u.view_distance; y < u.view_distance; y++)
 				{
 					for (int x = -u.view_distance; x < u.view_distance; x++)
@@ -156,7 +156,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 						auto chunk_data = std::make_tuple(x, y, minecraft::varint(0),c, minecraft::varint(0),
 									minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
 									minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-						netlib::send_packet(chunk_data, fd, 0x27);
+						sv.send_packet(chunk_data, fd, 0x27);
 					}
 				}
 				break;
@@ -181,7 +181,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				std::println("{}", chat_id);
 				auto message = std::make_tuple((char)0x0a, minecraft::string_tag(std::get<0>(chat_message).data.data, "text"), (char)0x00,
 											minecraft::varint(chat_id + 1), (char)0x0a, minecraft::string_tag(std::format("{} [{}]", u.name, u.pronouns), "text"), (char)0x00, false);
-				send_all(message, 0x1D);
+				send_all(message, 0x1D, sv);
 				break;
 			}
 			case 0x1B:
@@ -214,7 +214,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 
 				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
 															(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096), u.on_ground);
-				send_all_except_user(update_player_position, u, 0x2E);
+				send_all_except_user(update_player_position, u, 0x2E, sv);
 				break;
 			}
 			case 0x1E:
@@ -235,10 +235,10 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
 											(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096),
 											(char)((u.yaw/360) * 256), (char)((u.pitch/360) * 256), u.on_ground);
-				send_all_except_user(update_player_position, u, 0x2F);
+				send_all_except_user(update_player_position, u, 0x2F, sv);
 
 				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
-				send_all_except_user(update_head, u, 0x4C);
+				send_all_except_user(update_head, u, 0x4C, sv);
 				break;
 			}
 			case 0x1F:
@@ -250,7 +250,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				if (std::get<2>(update_rotation) == 0x01)
 					u.on_ground = true;
 				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
-				send_all_except_user(update_head, u, 0x4C);
+				send_all_except_user(update_head, u, 0x4C, sv);
 				break;
 			}
 			case 0x20:
@@ -273,7 +273,7 @@ void update_keep_alive(server &sv)
 		if (u.second.ticks_to_keepalive == 0)
 		{
 			auto keep_alive = std::make_tuple((long)4);
-			netlib::send_packet(keep_alive, u.first, 0x26);
+			sv.send_packet(keep_alive, u.first, 0x26);
 			u.second.sent = true;
 			std::println("Sent keep alive");
 		}
@@ -291,7 +291,7 @@ int main()
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
 	server sv{};
-	auto ret = sv.open_server("0.0.0.0", 25566);
+	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
 	{
 		std::println("Opening server failed: {}", ret.error());
@@ -301,8 +301,8 @@ int main()
 	while (true)
 	{
 		const auto before = clock::now();
-		std::unique_lock lock(sv.mut);
-		for (auto &pkt: sv.packets)
+		auto packets = sv.get_packets();
+		for (auto &pkt: packets)
 		{
 			if (pkt.id == -1)
 			{
@@ -313,8 +313,6 @@ int main()
 			std::println("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size);
 			execute_packet(pkt.fd, pkt, sv);
 		}
-		sv.packets.clear();
-		lock.unlock();
 		update_keep_alive(sv);
 		const ms duration = clock::now() - before;
 		//std::println("MSPT {}ms", duration.count());

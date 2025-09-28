@@ -10,6 +10,14 @@ void server::disconnect_client(int fd)
 	close(fd);
 }
 
+std::vector<netlib::packet> server::get_packets()
+{
+	std::lock_guard lock(mut);
+	std::vector<netlib::packet> ret = std::move(packets);
+	packets.clear();
+	return ret;
+}
+
 
 void server::recv_thread()
 {
@@ -86,6 +94,27 @@ void server::recv_thread()
 	}
 }
 
+void server::send_thread()
+{
+	while (threads == true)
+	{
+		std::unique_lock lock(send_mut);
+		std::vector<netlib::packet> s_packets = std::move(send_packets);
+		send_packets.clear();
+		lock.unlock();
+		for (auto &pkt: s_packets)
+		{
+			ssize_t ret = send(pkt.fd, pkt.data.data, pkt.data.size, 0);
+			if (ret == 0 || ret == -1)
+			{
+				disconnect_client(pkt.fd);
+			}
+			std::println("Sent {}B", ret);
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+}
+
 void server::clear_packets()
 {
 	std::lock_guard<std::mutex> lock(mut);
@@ -132,5 +161,7 @@ std::expected<bool, server_error> server::open_server(const char *ip, unsigned s
 	threads = true;
 	recv_th = std::thread([this]() {this->recv_thread();});
 	std::println("Started receiving thread!");
+	send_th = std::thread([this]() {this->send_thread();});
+	std::println("Started send thread!");
 	return true;
 }

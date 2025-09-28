@@ -70,6 +70,7 @@ class server
 			{
 				threads = false;
 				recv_th.join();
+				send_th.join();
 			}
 		}
 		server(const server&) = delete;
@@ -77,16 +78,54 @@ class server
 		void clear_packets();
 		std::expected<bool, server_error> open_server(const char *ip, unsigned short port);
 		void disconnect_client(int fd);
-		std::vector<netlib::packet> packets;
-		std::mutex mut;
+		template<typename ...T>
+		void send_packet(std::tuple<T...> packet, int send_fd, int id)
+		{
+			buffer<char> buf;
+			constexpr std::size_t size = std::tuple_size_v<decltype(packet)>;
+			write_comp_pkt(size, buf, packet);
 
+			buffer<char> dummy;
+			dummy.allocate(5);
+			size_t id_size = minecraft::write_varint(dummy.data, id);
+			buffer<char> header;
+			header.allocate(10); //the max size for 2 varints
+			header.size += minecraft::write_varint(header.data, buf.size + id_size);
+			header.size += minecraft::write_varint(&header.data[header.size], id);
+			header.write(buf.data, buf.size);
 
+			std::lock_guard lock(send_mut);
+			send_packets.emplace_back(id, header.size, 0, std::move(header), send_fd);
+		}
+
+		template<typename ...T>
+		void send_packet(int send_fd, int id)
+		{
+			buffer<char> dummy;
+			dummy.allocate(5);
+			size_t id_size = minecraft::write_varint(dummy.data, id);
+			buffer<char> header;
+			header.allocate(10); //the max size for 2 varints
+			header.size += minecraft::write_varint(header.data, id_size);
+			header.size += minecraft::write_varint(&header.data[header.size], id);
+
+			std::lock_guard lock(send_mut);
+			send_packets.emplace_back(id, header.size, 0, std::move(header), send_fd);
+		}
+
+		std::vector<netlib::packet> get_packets();
 	private:
 		void recv_thread();
+		void send_thread();
+		std::vector<netlib::packet> packets;
+		std::vector<netlib::packet> send_packets;
 		std::vector<int> connections;
 		int fd;
 		int epfd;
 		std::thread recv_th;
+		std::thread send_th;
 		std::atomic_bool threads;
+		std::mutex mut;
+		std::mutex send_mut;
 
 };

@@ -12,7 +12,7 @@ static int count_files(std::string path)
 }
 
 
-int send_registry(int fd)
+int send_registry(int fd, server &sv)
 {
 	int a = 0;
 	bool stop_a = false;
@@ -31,7 +31,7 @@ int send_registry(int fd)
 						continue;
 					auto register_ent = std::make_tuple(std::format("minecraft:{}/{}", entry.path().filename().string(), ent.path().filename().string()),
 											minecraft::varint(1), std::format("minecraft:{}",e.path().stem().string()), false);
-					netlib::send_packet(register_ent, fd, 0x07);
+					sv.send_packet(register_ent, fd, 0x07);
 					//std::println("Sending file {}", e.path().filename().string());
 				}
 				continue;
@@ -46,7 +46,7 @@ int send_registry(int fd)
 						(char)0x09, minecraft::short_string("parameters"), (char)0x08, (int)2, minecraft::nameless_string_tag("sender"), minecraft::nameless_string_tag("content"), (char)0x00,
 						(char)0x0a, minecraft::short_string("narration"),minecraft::string_tag("chat.type.text.narrate", "translation_key"),
 						(char)0x09, minecraft::short_string("parameters"), (char)0x08, (int)2, minecraft::nameless_string_tag("sender"), minecraft::nameless_string_tag("content"), (char)0x00, (char)0x00);
-				netlib::send_packet(register_ent, fd, 0x07);
+				sv.send_packet(register_ent, fd, 0x07);
 				std::println("Chat sent at num {}", a);
 				stop_a = true;
 			}
@@ -54,7 +54,7 @@ int send_registry(int fd)
 			{
 				auto register_ent = std::make_tuple(std::format("minecraft:{}",entry.path().filename().string()),
 										minecraft::varint(1), std::format("minecraft:{}", ent.path().stem().string()), false);
-				netlib::send_packet(register_ent, fd, 0x07);
+				sv.send_packet(register_ent, fd, 0x07);
 			}
 			if (entry.path().stem() == "chat_type")
 			{
