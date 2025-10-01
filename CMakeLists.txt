@@ -13,6 +13,8 @@ add_executable(lily src/main.cpp
         src/registry.h
         src/chunk.cpp
         src/chunk.h
+        src/block_registry_processing.cpp
+        src/block_registry_processing.h
 )
 
 target_link_libraries(lily PRIVATE OpenSSL::Crypto)

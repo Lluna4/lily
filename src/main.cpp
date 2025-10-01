@@ -5,6 +5,8 @@
 #include "networking/mc_netlib.h"
 #include "packet_arguments.h"
 #include "registry.h"
+#include "block_registry_processing.h"
+
 std::map<int, user> users;
 int chat_id = 0;
 world w;
@@ -291,13 +293,14 @@ int main()
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
 	server sv{};
-	auto ret = sv.open_server("0.0.0.0", 25565);
+	auto ret = sv.open_server("0.0.0.0", 25566);
 	if (!ret)
 	{
 		std::println("Opening server failed: {}", ret.error());
 		return -1;
 	}
-
+	std::map<int, std::string> items;
+	process_block_registry("../registries.json", items);
 	while (true)
 	{
 		const auto before = clock::now();
