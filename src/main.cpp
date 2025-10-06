@@ -10,13 +10,14 @@
 std::map<int, user> users;
 int chat_id = 0;
 world w;
+std::map<int, std::string> items;
 
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv)
 {
 	for (auto &us: users)
 	{
-		std::println("Checking user {}", us.second.fd);
+		//std::println("Checking user {}", us.second.fd);
 		if (us.second.fd != u.fd && us.second.state == STATE::PLAY)
 		{
 			std::println("Sending to user {}", us.second.fd);
@@ -30,7 +31,29 @@ void send_all(std::tuple<T...> packet, int id, server &sv)
 {
 	for (auto &u: users)
 	{
-		sv.send_packet(packet, u.first, id);
+		if (u.second.state == STATE::PLAY)
+			sv.send_packet(packet, u.first, id);
+	}
+}
+
+template <typename ...T>
+void send_render_distance(std::tuple<T...> packet, int id, server &sv, double x, double z)
+{
+	double chunk_x = floor((float)x/16.0f);
+	double chunk_z = floor((float)z/16.0f);
+
+	for (auto &u: users)
+	{
+		double user_chunk_x = floor((float)u.second.x/16.0f);
+		double user_chunk_z = floor((float)u.second.z/16.0f);
+		if (abs(chunk_x - user_chunk_x) <= u.second.view_distance && abs(chunk_z - user_chunk_z) <= u.second.view_distance)
+		{
+			if (u.second.state == STATE::PLAY)
+			{
+				sv.send_packet(packet, u.first, id);
+				std::println("Sent in render distance");
+			}
+		}
 	}
 }
 
@@ -146,6 +169,9 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 					}
 				}
 
+				auto set_effect = std::make_tuple(minecraft::varint(fd), minecraft::varint(15), minecraft::varint(1),
+												minecraft::varint(99999999), (char)0x04);
+				sv.send_packet(set_effect, fd, 0x7D);
 				auto game_event = std::make_tuple((unsigned char)13, 0.0f);
 				sv.send_packet(game_event, fd, 0x22);
 				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
@@ -263,6 +289,107 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 					u.on_ground = true;
 				break;
 			}
+			case 0x28:
+			{
+				std::tuple<minecraft::varint, int64_t, char, minecraft::varint> player_action;
+				player_action = netlib::read_packet(player_action, packet);
+
+				long pos = std::get<LOCATION>(player_action);
+				int x = pos >> 38;
+				int y = pos << 52 >> 52;
+				int z = pos << 26 >> 38;
+				std::println("Setting block at x: {} y: {} z: {}", x, y, z);
+				auto ret = w.set_block(x, y, z, 0);
+				if (!ret)
+					std::println("Block placement failed");
+
+				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(0));
+				send_render_distance(block_update, 0x08, sv, u.x, u.z);
+				auto awknowledge_block = std::make_tuple(minecraft::varint(std::get<SEQUENCE>(player_action)));
+				sv.send_packet(awknowledge_block, fd, 0x04);
+				std::println("Block placed was actually {}", items[0]);
+				break;
+			}
+			case 0x34:
+			{
+				std::tuple<short> set_held_item;
+				set_held_item = netlib::read_packet(set_held_item, packet);
+				u.held_item = std::get<0>(set_held_item);
+
+				auto set_equipment = std::make_tuple(minecraft::varint(fd), (char)0, minecraft::varint(1),
+												minecraft::varint(u.inventory[u.held_item + 36]), minecraft::varint(0),
+												minecraft::varint(0));
+				send_all_except_user(set_equipment, u, 0x5F, sv);
+				break;
+			}
+			case 0x37:
+			{
+				std::tuple<short, minecraft::varint, minecraft::varint> set_creative_slot;
+				set_creative_slot = netlib::read_packet(set_creative_slot, packet);
+				u.inventory[std::get<SLOT_ID>(set_creative_slot)] = std::get<ITEM_ID>(set_creative_slot).num;
+				if (std::get<SLOT_ID>(set_creative_slot) == 45)
+				{
+					auto set_equipment = std::make_tuple(minecraft::varint(fd), (char)1, minecraft::varint(1),
+								minecraft::varint(u.inventory[45]), minecraft::varint(0),
+								minecraft::varint(0));
+					send_all_except_user(set_equipment, u, 0x5F, sv);
+				}
+				if (std::get<SLOT_ID>(set_creative_slot) == u.held_item + 36)
+				{
+					auto set_equipment = std::make_tuple(minecraft::varint(fd), (char)0, minecraft::varint(1),
+								minecraft::varint(u.inventory[u.held_item + 36]), minecraft::varint(0),
+								minecraft::varint(0));
+					send_all_except_user(set_equipment, u, 0x5F, sv);
+				}
+				break;
+			}
+			case 0x3C:
+			{
+				std::tuple<minecraft::varint> swing_arm;
+				swing_arm = netlib::read_packet(swing_arm, packet);
+				unsigned char anim_id = 0;
+				if (std::get<0>(swing_arm).num == 1)
+					anim_id = 3;
+				auto entity_animation = std::make_tuple(minecraft::varint(fd), anim_id);
+				send_all_except_user(entity_animation, u, 0x02, sv);
+				break;
+			}
+			case 0x3F:
+			{
+				std::tuple<minecraft::varint, int64_t, minecraft::varint, float, float, float, bool, bool, minecraft::varint> use_item_on;
+				use_item_on = netlib::read_packet(use_item_on, packet);
+				long pos = std::get<1>(use_item_on);
+				int x = pos >> 38;
+				int y = pos << 52 >> 52;
+				int z = pos << 26 >> 38;
+				minecraft::varint face = std::get<2>(use_item_on);
+				switch (face.num)
+				{
+					case 0:
+						y--;
+					case 1:
+						y++;
+					case 2:
+						z--;
+					case 3:
+						z++;
+					case 4:
+						x--;
+					case 5:
+						x++;
+				}
+				std::println("Setting block at x: {} y: {} z: {}", x, y, z);
+				auto ret = w.set_block(x, y, z, 9);
+				if (!ret)
+					std::println("Block placement failed");
+
+				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(9));
+				send_render_distance(block_update, 0x08, sv, u.x, u.z);
+				auto awknowledge_block = std::make_tuple(std::get<8>(use_item_on));
+				sv.send_packet(awknowledge_block, fd, 0x04);
+				std::println("Block placed was actually {}", items[u.inventory[u.held_item + 36]]);
+				break;
+			}
 		}
 	}
 }
@@ -293,13 +420,12 @@ int main()
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
 	server sv{};
-	auto ret = sv.open_server("0.0.0.0", 25566);
+	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
 	{
 		std::println("Opening server failed: {}", ret.error());
 		return -1;
 	}
-	std::map<int, std::string> items;
 	process_block_registry("../registries.json", items);
 	while (true)
 	{
@@ -313,7 +439,7 @@ int main()
 				users.erase(pkt.fd);
 				continue;
 			}
-			std::println("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size);
+			//std::println("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size);
 			execute_packet(pkt.fd, pkt, sv);
 		}
 		update_keep_alive(sv);

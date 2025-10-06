@@ -30,6 +30,7 @@ class user
 			uuid.generate(name);
 			ticks_to_keepalive = 500;
 			sent = false;
+			held_item = 0;
 		}
 
 		STATE state;
@@ -46,5 +47,6 @@ class user
 		minecraft::uuid uuid;
 		int ticks_to_keepalive;
 		bool sent;
+		short held_item;
 };
 

@@ -83,7 +83,7 @@ void server::recv_thread()
 			if (cont == true)
 				continue;
 			dummy_pkt.data.size = total_to_read;
-			std::println("Read a packet with size {}", total_to_read);
+			//std::println("Read a packet with size {}", total_to_read);
 			std::tuple<minecraft::varint, minecraft::varint> head;
 
 			head = netlib::read_packet(head, dummy_pkt);

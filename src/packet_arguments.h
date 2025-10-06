@@ -31,3 +31,18 @@ enum update_position_and_rotation
 	PITCH,
 	FLAG,
 };
+
+enum set_creative_inventory_slot
+{
+	SLOT_ID,
+	ITEM_COUNT,
+	ITEM_ID
+};
+
+enum play_actions
+{
+	STATUS,
+	LOCATION,
+	FACE,
+	SEQUENCE
+};

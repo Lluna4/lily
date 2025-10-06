@@ -47,14 +47,12 @@ struct chunk
 				sec.blocks.resize(4096);
 				sec.non_air_blocks = 4096;
 				sec.palette.push_back(9);
-				sec.palette.push_back(0);
 			}
 			else
 			{
 				sec.blocks.resize(4092);
 				sec.non_air_blocks = 0;
 				sec.palette.push_back(0);
-				sec.palette.push_back(9);
 			}
 			sections.push_back(sec);
 		}
@@ -66,7 +64,7 @@ struct chunk
 
 struct world
 {
-	std::map<coordinates, chunk> chunks;
+	std::map<std::pair<int, int>, chunk> chunks;
 
 	chunk &get_chunk(int x, int z);
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);

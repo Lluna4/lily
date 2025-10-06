@@ -137,7 +137,12 @@ inline void write_type<chunk>(buffer<char> *v, chunk value)
     {
         short non_air = htobe16(*(uint16_t*)&sec.non_air_blocks);
         t.write(&non_air, sizeof(short));
-        if ((sec.non_air_blocks == 4096 || sec.non_air_blocks == 0) && sec.palette.size() == 2)
+        int8_t eq = sec.blocks[0];
+        bool not_equal = false;
+        for (auto &block: sec.blocks)
+            if (block != eq)
+                not_equal = true;
+        if ((sec.non_air_blocks == 4096 || sec.non_air_blocks == 0) && not_equal == false)
         {
             t.data[t.size] = 0;
             t.size++;
@@ -159,6 +164,7 @@ inline void write_type<chunk>(buffer<char> *v, chunk value)
             {
                 int64_t tmp = 0;
                 memcpy(&tmp, &sec.blocks[i * 8], sizeof(int64_t));
+                tmp = htobe64((*(uint64_t *)&tmp));
                 t.write(&tmp, sizeof(int64_t));
             }
         }
