@@ -1,6 +1,11 @@
 #include "block_registry_processing.h"
 
-void process_block_registry(const std::string& path, std::map<int, std::string> &blocks)
+static std::vector<std::string> parse_propierties(std::string data)
+{
+
+}
+
+void process_item_registry(const std::string& path, std::map<int, std::string> &items)
 {
 	if (!std::filesystem::exists(path))
 		return;
@@ -86,10 +91,22 @@ void process_block_registry(const std::string& path, std::map<int, std::string> 
 					if (letter == ':')
 						in_num = true;
 				}
-				blocks.emplace(atoi(num.c_str()), buf);
+				items.emplace(atoi(num.c_str()), buf);
 				std::println("added {}: {}", atoi(num.c_str()), buf);
 				buf.clear();
 			}
 		}
 	}
+}
+
+json_value process_block_registry(const std::string& path)
+{
+	if (!std::filesystem::exists(path))
+		return json_value{};
+	std::ifstream registry(path);
+	std::stringstream buffer;
+	buffer << registry.rdbuf();
+	std::string d = buffer.str();
+	json_parser p((char *)d.c_str());
+	return p.parse();
 }

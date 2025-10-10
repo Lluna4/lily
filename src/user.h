@@ -12,6 +12,14 @@ enum class STATE
 	PLAY
 };
 
+struct position
+{
+	position(double x, double y, double z)
+		:x(x), y(y), z(z)
+	{}
+	double x, y, z;
+};
+
 class user
 {
 	public:
@@ -33,6 +41,7 @@ class user
 			held_item = 0;
 		}
 
+		bool check_collision_block(position block);
 		STATE state;
 		int fd;
 		double x, y, z;
@@ -49,4 +58,11 @@ class user
 		bool sent;
 		short held_item;
 };
+
+inline bool user::check_collision_block(position block)
+{
+	return (x - 0.3 < block.x + 1 && x + 0.3 > block.x &&
+	y < block.y + 1 && y + 1.8 > block.y &&
+	z - 0.3 < block.z + 1 && z + 0.3 > block.z);
+}
 

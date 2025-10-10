@@ -15,7 +15,7 @@ namespace minecraft
 			num = 0;
 			size = 0;
 		}
-		explicit varint(int n)
+		explicit varint(long n)
 			:num(n)
 		{
 			size = 0;

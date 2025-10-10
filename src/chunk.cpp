@@ -48,7 +48,7 @@ chunk & world::get_chunk(int x, int z)
 	return ret->second;
 }
 
-std::expected<bool, chunk_error> world::set_block(int x, int y, int z, int id)
+std::expected<bool, chunk_error> world::set_block(int x, int y, int z, long id)
 {
 	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
 	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), id);

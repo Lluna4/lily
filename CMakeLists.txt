@@ -10,11 +10,10 @@ add_executable(lily src/main.cpp
         src/networking/epoll_utils.cpp
         src/networking/mc_netlib.cpp
         src/registry.cpp
-        src/registry.h
         src/chunk.cpp
-        src/chunk.h
         src/block_registry_processing.cpp
-        src/block_registry_processing.h
+        src/json_reader.cpp
+        src/json_reader.h
 )
 
 target_link_libraries(lily PRIVATE OpenSSL::Crypto)

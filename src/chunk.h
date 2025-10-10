@@ -67,6 +67,6 @@ struct world
 	std::map<std::pair<int, int>, chunk> chunks;
 
 	chunk &get_chunk(int x, int z);
-	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
+	std::expected<bool, chunk_error> set_block(int x, int y, int z, long id);
 };
 

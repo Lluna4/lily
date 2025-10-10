@@ -11,6 +11,7 @@ std::map<int, user> users;
 int chat_id = 0;
 world w;
 std::map<int, std::string> items;
+json_value blocks;
 
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv)
@@ -363,31 +364,58 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				int y = pos << 52 >> 52;
 				int z = pos << 26 >> 38;
 				minecraft::varint face = std::get<2>(use_item_on);
+				std::println("Face {}", face.num);
 				switch (face.num)
 				{
 					case 0:
 						y--;
+						break;
 					case 1:
 						y++;
+						break;
 					case 2:
 						z--;
+						break;
 					case 3:
 						z++;
+						break;
 					case 4:
 						x--;
+						break;
 					case 5:
 						x++;
+						break;
 				}
+				bool colliding = false;
+				for (auto &u: users)
+				{
+					if (u.second.state == STATE::PLAY)
+					{
+						colliding = u.second.check_collision_block(position(x, y, z));
+					}
+				}
+				if (colliding)
+					break;
+				json_value block_states = blocks.object[items[u.inventory[u.held_item + 36]]].object["states"];
+				long id = 0;
+				for (auto &state: block_states.array)
+				{
+					if (state.object.contains("default"))
+					{
+						id = state.object["id"].num;
+					}
+				}
+
 				std::println("Setting block at x: {} y: {} z: {}", x, y, z);
-				auto ret = w.set_block(x, y, z, 9);
+				auto ret = w.set_block(x, y, z, id);
 				if (!ret)
 					std::println("Block placement failed");
-
-				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(9));
+				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(id));
 				send_render_distance(block_update, 0x08, sv, u.x, u.z);
 				auto awknowledge_block = std::make_tuple(std::get<8>(use_item_on));
 				sv.send_packet(awknowledge_block, fd, 0x04);
-				std::println("Block placed was actually {}", items[u.inventory[u.held_item + 36]]);
+				std::println("Block placed is {}", items[u.inventory[u.held_item + 36]]);
+				std::println("Id is {}", id);
 				break;
 			}
 		}
@@ -426,7 +454,9 @@ int main()
 		std::println("Opening server failed: {}", ret.error());
 		return -1;
 	}
-	process_block_registry("../registries.json", items);
+	process_item_registry("../registries.json", items);
+	blocks = process_block_registry("../blocks.json");
+	std::println("Added block registry");
 	while (true)
 	{
 		const auto before = clock::now();
