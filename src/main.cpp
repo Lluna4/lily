@@ -6,6 +6,7 @@
 #include "packet_arguments.h"
 #include "registry.h"
 #include "block_registry_processing.h"
+#include "chat.h"
 
 std::map<int, user> users;
 int chat_id = 0;
@@ -138,7 +139,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 			}
 			case 0x03:
 			{
-				u.state = STATE::PLAY;
+
 				auto login = std::make_tuple(fd, false,minecraft::varint(1) ,(std::string)"minecraft:overworld",
 											minecraft::varint(20), minecraft::varint(u.view_distance),
 											minecraft::varint(12), false, false, false, minecraft::varint(0),
@@ -149,7 +150,8 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
 												(double)0.0f, u.yaw, u.pitch, (int)0);
 				sv.send_packet(sync_pos, fd, 0x41);
-				auto add_to_list = std::make_tuple((char)0x01, minecraft::varint(1), u.uuid, u.name, minecraft::varint(0));
+				auto add_to_list = std::make_tuple((char)(0x01 | 0x08 | 0x20), minecraft::varint(1), u.uuid, u.name, minecraft::varint(0),
+													true, true,(char)0x0a ,minecraft::string_tag(std::format("{} [{}]", u.name, u.pronouns), "text"), (char)0x00);
 				send_all_except_user(add_to_list, u, 0x3F, sv);
 				auto spawn_entity = std::make_tuple(minecraft::varint(fd), u.uuid, minecraft::varint(149),
 													u.x, u.y, u.z, (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256),
@@ -160,7 +162,9 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				{
 					if (us.second.fd != u.fd)
 					{
-						auto add_to_list_user = std::make_tuple((char)0x01, minecraft::varint(1), us.second.uuid, us.second.name, minecraft::varint(0));
+
+						auto add_to_list_user = std::make_tuple((char)(0x01 | 0x08 | 0x20), minecraft::varint(1), us.second.uuid, us.second.name, minecraft::varint(0),
+													true, true, (char)0x0a, minecraft::string_tag(std::format("{} [{}]", us.second.name, us.second.pronouns), "text"), (char)0x00);
 						sv.send_packet(add_to_list_user, fd, 0x3F);
 						auto spawn_entity_user = std::make_tuple(minecraft::varint(us.second.fd), us.second.uuid, minecraft::varint(149),
 									us.second.x, us.second.y, us.second.z, (char)((us.second.pitch/360) * 256),
@@ -188,6 +192,8 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 						sv.send_packet(chunk_data, fd, 0x27);
 					}
 				}
+				u.state = STATE::PLAY;
+				send_system_chat(std::format("{} connected", u.name), users, sv);
 				break;
 			}
 		}
@@ -207,10 +213,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 			{
 				std::tuple<minecraft::string> chat_message;
 				chat_message = netlib::read_packet(std::move(chat_message), packet);
-				std::println("{}", chat_id);
-				auto message = std::make_tuple((char)0x0a, minecraft::string_tag(std::get<0>(chat_message).data.data, "text"), (char)0x00,
-											minecraft::varint(chat_id + 1), (char)0x0a, minecraft::string_tag(std::format("{} [{}]", u.name, u.pronouns), "text"), (char)0x00, false);
-				send_all(message, 0x1D, sv);
+				send_chat(std::get<0>(chat_message).data.data, std::format("{} [{}]", u.name, u.pronouns), chat_id, sv, users);
 				break;
 			}
 			case 0x1B:
@@ -465,6 +468,15 @@ int main()
 		{
 			if (pkt.id == -1)
 			{
+				user &u = users.find(pkt.fd)->second;
+				if (u.state == STATE::PLAY)
+				{
+					auto remove_entity = std::make_tuple(minecraft::varint(1), minecraft::varint(pkt.fd));
+					send_all_except_user(remove_entity, u, 0x46, sv);
+					auto remove_info = std::make_tuple(minecraft::varint(1), u.uuid);
+					send_all_except_user(remove_info, u, 0x3E, sv);
+					send_system_chat(std::format("{} disconnected", u.name), users, sv);
+				}
 				std::println("Client disconnected");
 				users.erase(pkt.fd);
 				continue;

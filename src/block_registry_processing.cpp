@@ -1,10 +1,5 @@
 #include "block_registry_processing.h"
 
-static std::vector<std::string> parse_propierties(std::string data)
-{
-
-}
-
 void process_item_registry(const std::string& path, std::map<int, std::string> &items)
 {
 	if (!std::filesystem::exists(path))
@@ -97,6 +92,7 @@ void process_item_registry(const std::string& path, std::map<int, std::string> &
 			}
 		}
 	}
+	registry.close();
 }
 
 json_value process_block_registry(const std::string& path)
@@ -108,5 +104,6 @@ json_value process_block_registry(const std::string& path)
 	buffer << registry.rdbuf();
 	std::string d = buffer.str();
 	json_parser p((char *)d.c_str());
+	registry.close();
 	return p.parse();
 }

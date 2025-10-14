@@ -64,6 +64,11 @@ void server::recv_thread()
 				continue;
 			}
 			minecraft::varint size = minecraft::read_varint(dummy_pkt.data.data);
+			if (size.num > 60000)
+			{
+				disconnect_client(current_fd);
+				continue;
+			}
 			dummy_pkt.data.size = 0;
 			unsigned long already_read = 0;
 			unsigned long total_to_read = size.num + size.size;
