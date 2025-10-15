@@ -17,26 +17,25 @@ enum class TYPE_JSON
 	OBJECT
 };
 
-struct json_value;
 
+
+struct json_value;
+using json_object = std::map<std::string, json_value>;
+using json_array = std::vector<json_value>;
 struct json_value
 {
 	json_value()
-	{
-		b = false;
-		num = 0;
-		type = TYPE_JSON::BOOL;
-	}
-
-	json_value(bool bo, long n, std::string s, std::vector<json_value> a, std::map<std::string, json_value> o, TYPE_JSON t)
-		:b(bo), num(n), str(s), array(a), object(o), type(t)
 	{}
-	bool b;
-	long num;
-	std::string str;
-	std::vector<json_value> array;
-	std::map<std::string, json_value> object;
-	TYPE_JSON type;
+	json_value(std::variant<bool, long, std::string, std::vector<json_value>, std::map<std::string, json_value>> v)
+		:value(v)
+	{}
+	std::variant<bool, long, std::string, std::vector<json_value>, std::map<std::string, json_value>> value;
+
+	template <typename T>
+	T get()
+	{
+		return std::get<T>(value);
+	}
 };
 
 

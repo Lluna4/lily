@@ -16,7 +16,7 @@ void process_item_registry(const std::string& path, std::map<int, std::string> &
 			bool in_string = false;
 			std::string tmp;
 			int spaces = 0;
-			for (auto &letter: line)
+			for (char &letter: line)
 			{
 				if (letter == ' ')
 					spaces++;

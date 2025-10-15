@@ -137,17 +137,12 @@ inline void write_type<chunk>(buffer<char> *v, chunk value)
     {
         short non_air = htobe16(*(uint16_t*)&sec.non_air_blocks);
         t.write(&non_air, sizeof(short));
-        int8_t eq = sec.blocks[0];
-        bool not_equal = false;
-        for (auto &block: sec.blocks)
-            if (block != eq)
-                not_equal = true;
-        if ((sec.non_air_blocks == 4096 || sec.non_air_blocks == 0) && not_equal == false)
+        if (sec.blocks.size() == 1)
         {
             t.data[t.size] = 0;
             t.size++;
             t.allocate(t.size + 5);
-            t.size += minecraft::write_varint(&t.data[t.size], sec.palette[0]);
+            t.size += minecraft::write_varint(&t.data[t.size], sec.palette[sec.blocks[0]]);
         }
         else
         {

@@ -21,12 +21,19 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	{
 		if (sec.palette[i] == id)
 		{
+			if (sec.blocks.size() == 1)
+			{
+				if (i != sec.blocks[0])
+					sec.blocks.resize(4096);
+			}
 			palette_index = i;
 			break;
 		}
 	}
 	if (palette_index == -1)
 	{
+		if (sec.blocks.empty() || sec.blocks.size() == 1)
+			sec.blocks.resize(4096);
 		sec.palette.push_back(id);
 		palette_index = sec.palette.size() - 1;
 	}
@@ -35,7 +42,52 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	sec.non_air_blocks++;
 	if (sec.non_air_blocks > 4096)
 		sec.non_air_blocks = 4096;
+	if (sec.non_air_blocks == 4096)
+	{
+		bool equal = false;
+		long equal_id = 0;
+		for (long id_ = 0; id_ < sec.palette.size(); id_++)
+		{
+			bool eq = true;
+			for (auto &block: sec.blocks)
+			{
+				if (block != id_)
+				{
+					eq = false;
+					break;
+				}
+			}
+			if (eq == true)
+			{
+				equal_id = id_;
+				equal = true;
+				break;
+			}
+		}
+		if (equal == true)
+		{
+			sec.blocks.clear();
+			sec.blocks.shrink_to_fit();
+			sec.blocks.push_back(equal_id);
+		}
+	}
 	return true;
+}
+
+void chunk::generate()
+{
+	for (int z = 0; z < 16; z++)
+	{
+		for (int x = 0; x < 16; x++)
+		{
+			for (int y = -64; y < 64; y++)
+			{
+				auto ret = set_block(x, y, z, 9);
+				if (!ret)
+					std::println("Set block failed!");
+			}
+		}
+	}
 }
 
 chunk & world::get_chunk(int x, int z)
@@ -43,7 +95,9 @@ chunk & world::get_chunk(int x, int z)
 	auto ret = chunks.find(std::make_pair(x, z));
 	if (ret == chunks.end())
 	{
-		return chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
+		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
+		chunk.generate();
+		return chunk;
 	}
 	return ret->second;
 }

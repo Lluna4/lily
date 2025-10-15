@@ -7,39 +7,34 @@ json_value json_parser::parse()
 		if (data[index] == '{')
 		{
 			index++;
-			json_value ret;
-			ret.object = parse_object();
-			ret.type = TYPE_JSON::OBJECT;
+			json_value ret{};
+			ret.value = parse_object();
 			return ret;
 		}
 		if (data[index] == '[')
 		{
 			index++;
 			json_value ret;
-			ret.array = parse_array();
-			ret.type = TYPE_JSON::ARRAY;
+			ret.value = parse_array();
 			return ret;
 		}
 		if (data[index] == '"')
 		{
 			index++;
 			json_value ret;
-			ret.str = parse_string();
-			ret.type = TYPE_JSON::STRING;
+			ret.value = parse_string();
 			return ret;
 		}
 		if (isdigit(data[index]) != 0)
 		{
 			json_value ret;
-			ret.num = parse_number();
-			ret.type = TYPE_JSON::NUMBER;
+			ret.value = parse_number();
 			return ret;
 		}
 		if (data[index] == 't' || data[index] == 'f')
 		{
 			json_value ret;
-			ret.b = parse_bool();
-			ret.type = TYPE_JSON::BOOL;
+			ret.value = parse_bool();
 			return ret;
 		}
 		index++;
@@ -85,7 +80,7 @@ std::map<std::string, json_value> json_parser::parse_object()
 			//std::println("Getting value with key {}", key);
 			json_value value = parse();
 			ret.emplace(std::piecewise_construct, std::forward_as_tuple(key),
-				std::forward_as_tuple(value.b, value.num, value.str, value.array, value.object, value.type));
+				std::forward_as_tuple(value.value));
 		}
 		bool brk = false;
 		while (true)
@@ -139,7 +134,7 @@ std::vector<json_value> json_parser::parse_array()
 	while (true)
 	{
 		json_value value = parse();
-		ret.emplace(ret.end(), value.b, value.num, value.str, value.array, value.object, value.type);
+		ret.emplace(ret.end(), value.value);
 		bool brk = false;
 		while (true)
 		{

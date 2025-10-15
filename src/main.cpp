@@ -399,13 +399,13 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				}
 				if (colliding)
 					break;
-				json_value block_states = blocks.object[items[u.inventory[u.held_item + 36]]].object["states"];
+				json_value block_states = blocks.get<json_object>()[items[u.inventory[u.held_item + 36]]].get<json_object>()["states"];
 				long id = 0;
-				for (auto &state: block_states.array)
+				for (auto &state: block_states.get<json_array>())
 				{
-					if (state.object.contains("default"))
+					if (state.get<json_object>().contains("default"))
 					{
-						id = state.object["id"].num;
+						id = state.get<json_object>()["id"].get<long>();
 					}
 				}
 
