@@ -13,6 +13,8 @@ int chat_id = 0;
 world w;
 std::map<int, std::string> items;
 json_value blocks;
+long log_id = 0;
+long leaves_id = 0;
 
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv)
@@ -57,6 +59,74 @@ void send_render_distance(std::tuple<T...> packet, int id, server &sv, double x,
 			}
 		}
 	}
+}
+
+void stream_world(user &u, server &sv)
+{
+	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
+	{
+		auto set_center_chunk = std::make_tuple(minecraft::varint((unsigned long)(*(unsigned int *)&u.chunk_x)), minecraft::varint((unsigned long)(*(unsigned int *)&u.chunk_z)));
+		sv.send_packet(set_center_chunk, u.fd, 0x57);
+	}
+	else
+		return;
+	if (u.chunk_x != u.prev_chunk_x)
+	{
+		int chunk_start_x = u.chunk_x + u.view_distance;
+
+		if (u.chunk_x < u.prev_chunk_x)
+			chunk_start_x = u.chunk_x - u.view_distance;
+		
+		for (int x = chunk_start_x; x < chunk_start_x + 2; x++)
+		{
+			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 1; z++)
+			{
+				chunk &c = w.get_chunk(x, z);
+			}
+		}
+		w.build_trees(log_id, leaves_id);
+		for (int x = chunk_start_x; x < chunk_start_x + 2; x++)
+		{
+			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 1; z++)
+			{
+				chunk &c = w.get_chunk(x, z);
+				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0),c, minecraft::varint(0),
+							minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
+							minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
+				sv.send_packet(chunk_data, u.fd, 0x27);
+			}
+		}
+		//send_system_chat("Moved chunks in x", users, sv);
+	}
+	if (u.chunk_z != u.prev_chunk_z)
+	{
+		int chunk_start_z = u.chunk_z + u.view_distance;
+
+		if (u.chunk_z < u.prev_chunk_z)
+			chunk_start_z = u.chunk_z - u.view_distance;
+		
+		for (int z = chunk_start_z; z < chunk_start_z + 2; z++)
+		{
+			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 1; x++)
+			{
+				chunk &c = w.get_chunk(x, z);
+			}
+		}
+		w.build_trees(log_id, leaves_id);
+		for (int z = chunk_start_z; z < chunk_start_z + 2; z++)
+		{
+			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 1; x++)
+			{
+				chunk &c = w.get_chunk(x, z);
+				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0),c, minecraft::varint(0),
+							minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
+							minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
+				sv.send_packet(chunk_data, u.fd, 0x27);
+			}
+		}
+		//send_system_chat("Moved chunks in z", users, sv);
+	}
+
 }
 
 void execute_packet(int fd, netlib::packet &packet, server &sv)
@@ -181,9 +251,17 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				sv.send_packet(game_event, fd, 0x22);
 				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
 				sv.send_packet(set_center_chunk, fd, 0x57);
-				for (int y = -u.view_distance; y < u.view_distance; y++)
+				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
 				{
-					for (int x = -u.view_distance; x < u.view_distance; x++)
+					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
+					{
+						chunk &c = w.get_chunk(x, y);
+					}
+				}
+				w.build_trees(log_id, leaves_id);
+				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
+				{
+					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
 					{
 						chunk &c = w.get_chunk(x, y);
 						auto chunk_data = std::make_tuple(x, y, minecraft::varint(0),c, minecraft::varint(0),
@@ -192,6 +270,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 						sv.send_packet(chunk_data, fd, 0x27);
 					}
 				}
+
 				u.state = STATE::PLAY;
 				send_system_chat(std::format("{} connected", u.name), users, sv);
 				break;
@@ -238,15 +317,20 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				u.prev_x = u.x;
 				u.prev_y = u.y;
 				u.prev_z = u.z;
+				u.prev_chunk_x = u.chunk_x;
+				u.prev_chunk_z = u.chunk_z;
 				u.x = std::get<X>(update_position);
 				u.y = std::get<Y>(update_position);
 				u.z = std::get<Z>(update_position);
+				u.chunk_x = floor((float)u.x/16.0f);
+				u.chunk_z = floor((float)u.z/16.0f);
 				if (std::get<3>(update_position) == 0x01)
 					u.on_ground = true;
 
 				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
 															(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096), u.on_ground);
 				send_all_except_user(update_player_position, u, 0x2E, sv);
+				stream_world(u, sv);
 				break;
 			}
 			case 0x1E:
@@ -256,9 +340,13 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				u.prev_x = u.x;
 				u.prev_y = u.y;
 				u.prev_z = u.z;
+				u.prev_chunk_x = u.chunk_x;
+				u.prev_chunk_z = u.chunk_z;
 				u.x = std::get<X>(update_position_rotation);
 				u.y = std::get<Y>(update_position_rotation);
 				u.z = std::get<Z>(update_position_rotation);
+				u.chunk_x = floor((float)u.x/16.0f);
+				u.chunk_z = floor((float)u.z/16.0f);
 				u.yaw = std::get<YAW>(update_position_rotation);
 				u.pitch = std::get<PITCH>(update_position_rotation);
 				if (std::get<FLAG>(update_position_rotation) == 0x01)
@@ -271,6 +359,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 
 				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
 				send_all_except_user(update_head, u, 0x4C, sv);
+				stream_world(u, sv);
 				break;
 			}
 			case 0x1F:
@@ -458,7 +547,26 @@ int main()
 		return -1;
 	}
 	process_item_registry("../registries.json", items);
-	blocks = process_block_registry("../blocks.json");
+	blocks = process_block_registry("/home/luna/CLionProjects/jelly/blocks.json");
+	json_value block_states = blocks.get<json_object>()["minecraft:oak_log"].get<json_object>()["states"];
+	log_id = 0;
+	for (auto &state: block_states.get<json_array>())
+	{
+		if (state.get<json_object>().contains("default"))
+		{
+			log_id = state.get<json_object>()["id"].get<long>();
+		}
+	}
+
+	json_value block_states2 = blocks.get<json_object>()["minecraft:oak_leaves"].get<json_object>()["states"];
+	leaves_id = 0;
+	for (auto &state: block_states2.get<json_array>())
+	{
+		if (state.get<json_object>().contains("default"))
+		{
+			leaves_id = state.get<json_object>()["id"].get<long>();
+		}
+	}
 	std::println("Added block registry");
 	while (true)
 	{
@@ -486,7 +594,7 @@ int main()
 		}
 		update_keep_alive(sv);
 		const ms duration = clock::now() - before;
-		//std::println("MSPT {}ms", duration.count());
+		std::println("MSPT {}ms", duration.count());
 		if (duration.count() <= 50)
 			std::this_thread::sleep_for(std::chrono::milliseconds(50) - duration);
 	}

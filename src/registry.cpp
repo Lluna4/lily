@@ -16,7 +16,7 @@ int send_registry(int fd, server &sv)
 {
 	int a = 0;
 	bool stop_a = false;
-	for (const auto & entry : std::filesystem::directory_iterator("../minecraft/"))
+	for (const auto & entry : std::filesystem::directory_iterator("/home/luna/CLionProjects/jelly/minecraft"))
 	{
 		if (entry.path().filename().string().starts_with("."))
 			continue;

@@ -28,6 +28,7 @@ class user
 		{
 			state = STATE::HANDSHAKE;
 			x = 0.0f, y = 65.0f, z = 0.0f;
+			chunk_x = 0, chunk_z = 0;
 			yaw = 0.0f; pitch = 0.0f;
 			on_ground = false;
 			inventory.resize(46);
@@ -45,8 +46,12 @@ class user
 		STATE state;
 		int fd;
 		double x, y, z;
+		int chunk_x;
+		int chunk_z;
 		float yaw, pitch;
 		double prev_x, prev_y, prev_z;
+		int prev_chunk_x;
+		int prev_chunk_z;
 		bool on_ground;
 		std::vector<unsigned long> inventory;
 		std::string name;

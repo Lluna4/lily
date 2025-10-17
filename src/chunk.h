@@ -4,6 +4,8 @@
 #include <vector>
 #include <map>
 #include <cmath>
+#include <random>
+#include "json_reader.h"
 
 int rem_euclid(int a, int b);
 
@@ -51,14 +53,16 @@ struct chunk
 	std::vector<section> sections;
 	int x, y;
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
-	void generate();
+	void generate(std::vector<std::pair<int, int>> &trees);
 };
 
 struct world
 {
 	std::map<std::pair<int, int>, chunk> chunks;
+	std::vector<std::pair<int, int>> trees_to_build;
 
 	chunk &get_chunk(int x, int z);
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, long id);
+	void build_trees(long log_id, long leaves_id);
 };
 

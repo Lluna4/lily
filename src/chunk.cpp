@@ -1,4 +1,6 @@
 #include "chunk.h"
+#include <print>
+#include <utility>
 
 int rem_euclid(int a, int b)
 {
@@ -74,15 +76,23 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	return true;
 }
 
-void chunk::generate()
+void chunk::generate(std::vector<std::pair<int, int>> &trees)
 {
+	std::random_device dev;
+	std::mt19937 rng(dev());
+	std::uniform_int_distribution<std::mt19937::result_type> dist(1,20);
+
+	int tree_x = dist(rng);
+	int tree_z = dist(rng);
+	if (tree_x < 16 && tree_z < 16)
+		trees.push_back(std::make_pair(tree_x + (x * 16), tree_z + (y * 16)));
 	for (int z = 0; z < 16; z++)
 	{
-		for (int x = 0; x < 16; x++)
+		for (int x_ = 0; x_ < 16; x_++)
 		{
-			for (int y = -64; y < 64; y++)
+			for (int y_ = -64; y_ < 64; y_++)
 			{
-				auto ret = set_block(x, y, z, 9);
+				auto ret = set_block(x_, y_, z, 9);
 				if (!ret)
 					std::println("Set block failed!");
 			}
@@ -90,13 +100,15 @@ void chunk::generate()
 	}
 }
 
+
+
 chunk & world::get_chunk(int x, int z)
 {
 	auto ret = chunks.find(std::make_pair(x, z));
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate();
+		chunk.generate(trees_to_build);
 		return chunk;
 	}
 	return ret->second;
@@ -107,6 +119,47 @@ std::expected<bool, chunk_error> world::set_block(int x, int y, int z, long id)
 	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
 	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), id);
 	if (!ret)
+	{
+		std::println("Block placement failed");
 		return std::unexpected(ret.error());
+	}
 	return true;
+}
+
+void world::build_trees(long log_id, long leaves_id)
+{
+	for (auto &pos: trees_to_build)
+	{
+		set_block(pos.first, 64, pos.second, log_id);
+		set_block(pos.first, 65, pos.second, log_id);
+		for (int y = 66; y < 68; y++)
+		{
+			for(int z = -3; z <= 3; z++)
+			{
+				for(int x = -3; x <= 3; x++)
+				{
+					if (x == 0 && z == 0)
+						set_block(pos.first + x, y, pos.second + z, log_id);
+					else
+						set_block(pos.first + x, y, pos.second + z, leaves_id);
+				}
+			}
+		}
+		for(int z = -2; z <= 2; z++)
+		{
+			for(int x = -2; x <= 2; x++)
+			{
+				if (x == 0 && z == 0)
+					set_block(pos.first + x, 68, pos.second + z, log_id);
+				else
+					set_block(pos.first + x, 68, pos.second + z, leaves_id);
+			}
+		}
+		set_block(pos.first + 1, 69, pos.second, leaves_id);
+		set_block(pos.first - 1, 69, pos.second, leaves_id);
+		set_block(pos.first, 69, pos.second, leaves_id);
+		set_block(pos.first, 69, pos.second + 1, leaves_id);
+		set_block(pos.first, 69, pos.second - 1, leaves_id);
+	}
+	trees_to_build.clear();
 }
