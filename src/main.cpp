@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <print>
 #include <chrono>
 #include <map>
@@ -7,6 +8,7 @@
 #include "registry.h"
 #include "block_registry_processing.h"
 #include "chat.h"
+#include "log.h"
 
 std::map<int, user> users;
 int chat_id = 0;
@@ -24,7 +26,6 @@ void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv)
 		//std::println("Checking user {}", us.second.fd);
 		if (us.second.fd != u.fd && us.second.state == STATE::PLAY)
 		{
-			std::println("Sending to user {}", us.second.fd);
 			sv.send_packet(packet, us.second.fd, id);
 		}
 	}
@@ -55,7 +56,6 @@ void send_render_distance(std::tuple<T...> packet, int id, server &sv, double x,
 			if (u.second.state == STATE::PLAY)
 			{
 				sv.send_packet(packet, u.first, id);
-				std::println("Sent in render distance");
 			}
 		}
 	}
@@ -145,8 +145,8 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 			case 0:
 				std::tuple<minecraft::varint, minecraft::string, unsigned short, minecraft::varint> handshake;
 				handshake = netlib::read_packet(std::move(handshake), packet);
-				std::println("Received handshake packet with version {} address {} port {} intent {}",
-					std::get<VERSION>(handshake).num, std::get<ADDRESS>(handshake).data.data, std::get<PORT>(handshake), std::get<INTENT>(handshake).num);
+				log(std::format("Received handshake packet with version {} address {} port {} intent {}",
+					std::get<VERSION>(handshake).num, std::get<ADDRESS>(handshake).data.data, std::get<PORT>(handshake), std::get<INTENT>(handshake).num), LOG_LEVEL::NORMAL);
 				if (std::get<0>(handshake).num != 772)
 				{
 					sv.disconnect_client(fd);
@@ -189,7 +189,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				std::tuple<minecraft::string, char, minecraft::varint, bool, unsigned char, minecraft::varint, bool, bool, minecraft::varint> client_info;
 				client_info = netlib::read_packet(std::move(client_info), packet);
 
-				std::println("Locale {} View distance {}", std::get<LOCALE>(client_info).data.data, (int)std::get<VIEW_DISTANCE>(client_info));
+				log(std::format("Locale {} View distance {}", std::get<LOCALE>(client_info).data.data, (int)std::get<VIEW_DISTANCE>(client_info)), LOG_LEVEL::NORMAL);
 				u.locale = std::get<LOCALE>(client_info).data.data;
 				u.view_distance = std::get<VIEW_DISTANCE>(client_info);
 
@@ -204,7 +204,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 			{
 				std::tuple<minecraft::string> plugin_message;
 				plugin_message = netlib::read_packet(std::move(plugin_message), packet);
-				std::println("Plugin message sent from channel {}", std::get<0>(plugin_message).data.data);
+				log(std::format("Plugin message sent from channel {}", std::get<0>(plugin_message).data.data), LOG_LEVEL::NORMAL);
 				break;
 			}
 			case 0x03:
@@ -283,7 +283,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 		{
 			case 0x00:
 			{
-				std::println("teleport confirm");
+				log("teleport confirm", LOG_LEVEL::NORMAL);
 				std::tuple<minecraft::varint> confirm_teleport;
 				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
 				break;
@@ -307,7 +307,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				}
 				u.ticks_to_keepalive = 500;
 				u.sent = false;
-				std::println("Received keep alive");
+				log("Received keep alive", LOG_LEVEL::NORMAL);
 				break;
 			}
 			case 0x1D:
@@ -391,16 +391,16 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				int x = pos >> 38;
 				int y = pos << 52 >> 52;
 				int z = pos << 26 >> 38;
-				std::println("Setting block at x: {} y: {} z: {}", x, y, z);
+				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
 				auto ret = w.set_block(x, y, z, 0);
 				if (!ret)
-					std::println("Block placement failed");
+					log("Block placement failed", LOG_LEVEL::NORMAL);
 
 				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(0));
 				send_render_distance(block_update, 0x08, sv, u.x, u.z);
 				auto awknowledge_block = std::make_tuple(minecraft::varint(std::get<SEQUENCE>(player_action)));
 				sv.send_packet(awknowledge_block, fd, 0x04);
-				std::println("Block placed was actually {}", items[0]);
+				log(std::format("Block placed was actually {}", items[0]), LOG_LEVEL::NORMAL);
 				break;
 			}
 			case 0x34:
@@ -501,13 +501,13 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				std::println("Setting block at x: {} y: {} z: {}", x, y, z);
 				auto ret = w.set_block(x, y, z, id);
 				if (!ret)
-					std::println("Block placement failed");
+					log("Block placement failed", LOG_LEVEL::ERROR);
 				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(id));
 				send_render_distance(block_update, 0x08, sv, u.x, u.z);
 				auto awknowledge_block = std::make_tuple(std::get<8>(use_item_on));
 				sv.send_packet(awknowledge_block, fd, 0x04);
-				std::println("Block placed is {}", items[u.inventory[u.held_item + 36]]);
-				std::println("Id is {}", id);
+				log(std::format("Block placed is {}", items[u.inventory[u.held_item + 36]]), LOG_LEVEL::NORMAL);
+				log(std::format("Id is {}", id), LOG_LEVEL::NORMAL);
 				break;
 			}
 		}
@@ -524,13 +524,13 @@ void update_keep_alive(server &sv)
 			auto keep_alive = std::make_tuple((long)4);
 			sv.send_packet(keep_alive, u.first, 0x26);
 			u.second.sent = true;
-			std::println("Sent keep alive");
+			log("Sent keep alive", LOG_LEVEL::NORMAL);
 		}
 		if (u.second.ticks_to_keepalive == 3000)
 		{
 			sv.disconnect_client(u.first);
 			users.erase(u.first);
-			std::println("User timed out");
+			log("User timed out", LOG_LEVEL::WARNING);
 		}
 	}
 }
@@ -543,9 +543,11 @@ int main()
 	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
 	{
-		std::println("Opening server failed: {}", ret.error());
+		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);
 		return -1;
 	}
+	if (std::filesystem::exists("log.txt"))
+		std::filesystem::remove("log.txt");
 	process_item_registry("../registries.json", items);
 	blocks = process_block_registry("/home/luna/CLionProjects/jelly/blocks.json");
 	json_value block_states = blocks.get<json_object>()["minecraft:oak_log"].get<json_object>()["states"];
@@ -567,7 +569,7 @@ int main()
 			leaves_id = state.get<json_object>()["id"].get<long>();
 		}
 	}
-	std::println("Added block registry");
+	log("Added block registry", LOG_LEVEL::NORMAL);
 	while (true)
 	{
 		const auto before = clock::now();
@@ -585,16 +587,16 @@ int main()
 					send_all_except_user(remove_info, u, 0x3E, sv);
 					send_system_chat(std::format("{} disconnected", u.name), users, sv);
 				}
-				std::println("Client disconnected");
+				log("Client disconnected", LOG_LEVEL::NORMAL);
 				users.erase(pkt.fd);
 				continue;
 			}
-			//std::println("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size);
+			log(std::format("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size), LOG_LEVEL::NORMAL);
 			execute_packet(pkt.fd, pkt, sv);
 		}
 		update_keep_alive(sv);
 		const ms duration = clock::now() - before;
-		std::println("MSPT {}ms", duration.count());
+		log(std::format("MSPT {}ms", duration.count()), LOG_LEVEL::NORMAL);
 		if (duration.count() <= 50)
 			std::this_thread::sleep_for(std::chrono::milliseconds(50) - duration);
 	}

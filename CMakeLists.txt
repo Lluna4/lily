@@ -15,6 +15,7 @@ add_executable(lily src/main.cpp
         src/json_reader.cpp
         src/json_reader.h
         src/chat.cpp
+        src/log.cpp
 )
 
 target_link_libraries(lily PRIVATE OpenSSL::Crypto)
