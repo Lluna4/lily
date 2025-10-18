@@ -1,6 +1,5 @@
 #include "chunk.h"
-#include <print>
-#include <utility>
+#include "user.h"
 
 int rem_euclid(int a, int b)
 {
@@ -76,7 +75,7 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	return true;
 }
 
-void chunk::generate(std::vector<std::pair<int, int>> &trees)
+void chunk::generate(std::vector<position_int> &trees)
 {
 	std::random_device dev;
 	std::mt19937 rng(dev());
@@ -84,17 +83,18 @@ void chunk::generate(std::vector<std::pair<int, int>> &trees)
 
 	int tree_x = dist(rng);
 	int tree_z = dist(rng);
-	if (tree_x < 16 && tree_z < 16)
-		trees.push_back(std::make_pair(tree_x + (x * 16), tree_z + (y * 16)));
-	for (int z = 0; z < 16; z++)
+	int y_max = 64;
+	for (int z_ = 0; z_ < 16; z_++)
 	{
 		for (int x_ = 0; x_ < 16; x_++)
 		{
-			for (int y_ = -64; y_ < 64; y_++)
+			for (int y = -64; y < y_max; y++)
 			{
-				auto ret = set_block(x_, y_, z, 9);
+				auto ret = set_block(x_, y, z_, 9);
 				if (!ret)
 					std::println("Set block failed!");
+				if (y == y_max - 1 && tree_x == x_ && tree_z == z_)
+					trees.emplace_back(tree_x + (x * 16), y, tree_z + (z * 16));
 			}
 		}
 	}
@@ -130,18 +130,18 @@ void world::build_trees(long log_id, long leaves_id)
 {
 	for (auto &pos: trees_to_build)
 	{
-		set_block(pos.first, 64, pos.second, log_id);
-		set_block(pos.first, 65, pos.second, log_id);
-		for (int y = 66; y < 68; y++)
+		set_block(pos.x, pos.y + 1, pos.z, log_id);
+		set_block(pos.x, pos.y + 2, pos.z, log_id);
+		for (int y = 3; y < 5; y++)
 		{
 			for(int z = -3; z <= 3; z++)
 			{
 				for(int x = -3; x <= 3; x++)
 				{
 					if (x == 0 && z == 0)
-						set_block(pos.first + x, y, pos.second + z, log_id);
+						set_block(pos.x + x, pos.y + y, pos.z + z, log_id);
 					else
-						set_block(pos.first + x, y, pos.second + z, leaves_id);
+						set_block(pos.x + x, pos.y + y, pos.z + z, leaves_id);
 				}
 			}
 		}
@@ -150,16 +150,16 @@ void world::build_trees(long log_id, long leaves_id)
 			for(int x = -2; x <= 2; x++)
 			{
 				if (x == 0 && z == 0)
-					set_block(pos.first + x, 68, pos.second + z, log_id);
+					set_block(pos.x + x, pos.y + 5, pos.z + z, log_id);
 				else
-					set_block(pos.first + x, 68, pos.second + z, leaves_id);
+					set_block(pos.x + x, pos.y + 5, pos.z + z, leaves_id);
 			}
 		}
-		set_block(pos.first + 1, 69, pos.second, leaves_id);
-		set_block(pos.first - 1, 69, pos.second, leaves_id);
-		set_block(pos.first, 69, pos.second, leaves_id);
-		set_block(pos.first, 69, pos.second + 1, leaves_id);
-		set_block(pos.first, 69, pos.second - 1, leaves_id);
+		set_block(pos.x + 1, pos.y + 6, pos.z, leaves_id);
+		set_block(pos.x - 1, pos.y + 6, pos.z, leaves_id);
+		set_block(pos.x, pos.y + 6, pos.z, leaves_id);
+		set_block(pos.x, pos.y + 6, pos.z + 1, leaves_id);
+		set_block(pos.x, pos.y + 6, pos.z - 1, leaves_id);
 	}
 	trees_to_build.clear();
 }

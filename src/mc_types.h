@@ -4,7 +4,6 @@
 #include <string>
 #include <utility>
 #include "networking/buffer.h"
-#include "chunk.h"
 
 namespace minecraft
 {

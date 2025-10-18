@@ -2,6 +2,7 @@
 #include <print>
 #include <chrono>
 #include <map>
+#include <cmath>
 #include "user.h"
 #include "networking/mc_netlib.h"
 #include "packet_arguments.h"
@@ -9,6 +10,7 @@
 #include "block_registry_processing.h"
 #include "chat.h"
 #include "log.h"
+#include "chunk.h"
 
 std::map<int, user> users;
 int chat_id = 0;

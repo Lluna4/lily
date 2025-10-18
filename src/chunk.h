@@ -5,7 +5,7 @@
 #include <map>
 #include <cmath>
 #include <random>
-#include "json_reader.h"
+#include "user.h"
 
 int rem_euclid(int a, int b);
 
@@ -38,8 +38,8 @@ enum class chunk_error
 
 struct chunk
 {
-	chunk(int x, int y)
-		:x(x), y(y)
+	chunk(int x, int z)
+		:x(x), z(z)
 	{
 		for (int i = 0; i < 24; i++)
 		{
@@ -51,15 +51,15 @@ struct chunk
 		}
 	}
 	std::vector<section> sections;
-	int x, y;
+	int x, z;
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
-	void generate(std::vector<std::pair<int, int>> &trees);
+	void generate(std::vector<position_int> &trees);
 };
 
 struct world
 {
 	std::map<std::pair<int, int>, chunk> chunks;
-	std::vector<std::pair<int, int>> trees_to_build;
+	std::vector<position_int> trees_to_build;
 
 	chunk &get_chunk(int x, int z);
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, long id);

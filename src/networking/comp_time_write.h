@@ -8,6 +8,7 @@
 #include <print>
 #include "buffer.h"
 #include "../mc_types.h"
+#include "../chunk.h"
 #ifdef __FreeBSD__
 #include <sys/endian.h>
 #endif
