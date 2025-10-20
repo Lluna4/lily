@@ -1,4 +1,5 @@
 #include "chunk.h"
+#include "PerlinNoise.hpp"
 #include "user.h"
 
 int rem_euclid(int a, int b)
@@ -80,6 +81,8 @@ void chunk::generate(std::vector<position_int> &trees)
 	std::random_device dev;
 	std::mt19937 rng(dev());
 	std::uniform_int_distribution<std::mt19937::result_type> dist(1,20);
+	const siv::PerlinNoise::seed_type seed = 12871;
+	const siv::PerlinNoise noise{ seed };
 
 	int tree_x = dist(rng);
 	int tree_z = dist(rng);
@@ -88,13 +91,29 @@ void chunk::generate(std::vector<position_int> &trees)
 	{
 		for (int x_ = 0; x_ < 16; x_++)
 		{
+			int world_x = x * 16 + x_;
+			int world_z = z * 16 + z_;
+			const double value = noise.octave2D_11(world_x * 0.0007, world_z * 0.0007, 8);
+			int n = abs(320 - 64)/abs(1.0f - -0.8f); //this is a very bad spline, just for testing
+			int n_negative = abs(64 - -64)/abs(-0.8f - -1.0f);
+			if (value >= -0.8f)
+				y_max = n * (value - -0.8f) + 64;
+			else
+				y_max = n_negative * (value - -1.0f) + -64;
 			for (int y = -64; y < y_max; y++)
 			{
 				auto ret = set_block(x_, y, z_, 9);
 				if (!ret)
 					std::println("Set block failed!");
-				if (y == y_max - 1 && tree_x == x_ && tree_z == z_)
+				if (y == y_max - 1 && y_max >= 64 && tree_x == x_ && tree_z == z_)
 					trees.emplace_back(tree_x + (x * 16), y, tree_z + (z * 16));
+			}
+			if (y_max < 64)
+			{
+				for (int y = y_max; y < 64; y++)
+				{
+					set_block(x_, y, z_, 86);
+				}
 			}
 		}
 	}
