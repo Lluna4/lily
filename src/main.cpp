@@ -551,7 +551,7 @@ int main()
 	if (std::filesystem::exists("log.txt"))
 		std::filesystem::remove("log.txt");
 	process_item_registry("../registries.json", items);
-	blocks = process_block_registry("/home/luna/CLionProjects/jelly/blocks.json");
+	blocks = process_block_registry("../blocks.json");
 	json_value block_states = blocks.get<json_object>()["minecraft:oak_log"].get<json_object>()["states"];
 	log_id = 0;
 	for (auto &state: block_states.get<json_array>())
