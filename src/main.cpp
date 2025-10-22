@@ -3,6 +3,7 @@
 #include <chrono>
 #include <map>
 #include <cmath>
+#include "json_reader.h"
 #include "user.h"
 #include "networking/mc_netlib.h"
 #include "packet_arguments.h"
@@ -11,12 +12,12 @@
 #include "chat.h"
 #include "log.h"
 #include "chunk.h"
+#include "blocks.h"
 
 std::map<int, user> users;
 int chat_id = 0;
 world w;
 std::map<int, std::string> items;
-json_value blocks;
 long log_id = 0;
 long leaves_id = 0;
 
@@ -131,7 +132,7 @@ void stream_world(user &u, server &sv)
 
 }
 
-void execute_packet(int fd, netlib::packet &packet, server &sv)
+void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blocks)
 {
 	if (!users.contains(fd))
 	{
@@ -490,16 +491,23 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				}
 				if (colliding)
 					break;
-				json_value block_states = blocks.get<json_object>()[items[u.inventory[u.held_item + 36]]].get<json_object>()["states"];
-				long id = 0;
-				for (auto &state: block_states.get<json_array>())
+
+				block placed_block = blocks.get_block(items[u.inventory[u.held_item + 36]]);
+				auto props = placed_block.get_available_propierties();
+
+				for (auto &[property, value]: props.get<json_object>())
 				{
-					if (state.get<json_object>().contains("default"))
+					if (property == "axis")
 					{
-						id = state.get<json_object>()["id"].get<long>();
+						if (face.num == 0 || face.num == 1)
+							placed_block.add_propierty("axis", "y");
+						else if (face.num == 2 || face.num == 3)
+							placed_block.add_propierty("axis", "z");
+						else if (face.num == 4 || face.num == 5)
+							placed_block.add_propierty("axis", "x");
 					}
 				}
-
+				long id = placed_block.actual_id;
 				std::println("Setting block at x: {} y: {} z: {}", x, y, z);
 				auto ret = w.set_block(x, y, z, id);
 				if (!ret)
@@ -551,26 +559,10 @@ int main()
 	if (std::filesystem::exists("log.txt"))
 		std::filesystem::remove("log.txt");
 	process_item_registry("../registries.json", items);
-	blocks = process_block_registry("../blocks.json");
-	json_value block_states = blocks.get<json_object>()["minecraft:oak_log"].get<json_object>()["states"];
-	log_id = 0;
-	for (auto &state: block_states.get<json_array>())
-	{
-		if (state.get<json_object>().contains("default"))
-		{
-			log_id = state.get<json_object>()["id"].get<long>();
-		}
-	}
+	block_index blocks("../blocks.json");
 
-	json_value block_states2 = blocks.get<json_object>()["minecraft:oak_leaves"].get<json_object>()["states"];
-	leaves_id = 0;
-	for (auto &state: block_states2.get<json_array>())
-	{
-		if (state.get<json_object>().contains("default"))
-		{
-			leaves_id = state.get<json_object>()["id"].get<long>();
-		}
-	}
+	log_id = blocks.get_block("minecraft:oak_log").actual_id;
+	leaves_id = blocks.get_block("minecraft:oak_leaves").actual_id;
 	log("Added block registry", LOG_LEVEL::NORMAL);
 	while (true)
 	{
@@ -594,7 +586,7 @@ int main()
 				continue;
 			}
 			log(std::format("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size), LOG_LEVEL::NORMAL);
-			execute_packet(pkt.fd, pkt, sv);
+			execute_packet(pkt.fd, pkt, sv, blocks);
 		}
 		update_keep_alive(sv);
 		const ms duration = clock::now() - before;
