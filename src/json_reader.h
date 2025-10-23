@@ -27,9 +27,36 @@ struct json_value
 	json_value()
 	{}
 	json_value(std::variant<bool, long, std::string, std::vector<json_value>, std::map<std::string, json_value>> v)
-		:value(v)
-	{}
+		:value(std::move(v))
+	{
+		if (std::holds_alternative<bool>(value))
+			type = TYPE_JSON::BOOL;
+		if (std::holds_alternative<long>(value))
+			type = TYPE_JSON::NUMBER;
+		if (std::holds_alternative<std::string>(value))
+			type = TYPE_JSON::STRING;
+		if (std::holds_alternative<std::vector<json_value>>(value))
+			type = TYPE_JSON::ARRAY;
+		if (std::holds_alternative<std::map<std::string, json_value>>(value))
+			type = TYPE_JSON::OBJECT;
+	}
 	std::variant<bool, long, std::string, std::vector<json_value>, std::map<std::string, json_value>> value;
+	TYPE_JSON type;
+
+	TYPE_JSON get_type()
+	{
+		if (std::holds_alternative<bool>(value))
+			return TYPE_JSON::BOOL;
+		if (std::holds_alternative<long>(value))
+			return TYPE_JSON::NUMBER;
+		if (std::holds_alternative<std::string>(value))
+			return TYPE_JSON::STRING;
+		if (std::holds_alternative<std::vector<json_value>>(value))
+			return TYPE_JSON::ARRAY;
+		if (std::holds_alternative<std::map<std::string, json_value>>(value))
+			return TYPE_JSON::OBJECT;
+		return TYPE_JSON::BOOL;
+	}
 
 	template <typename T>
 	T get()

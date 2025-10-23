@@ -1,7 +1,7 @@
 #include "blocks.h"
 #include "json_reader.h"
 
-void block::add_propierty(std::string propierty, std::string name)
+void block::add_propierty(std::string propierty, json_value name)
 {
     added_propierties.emplace(propierty, name);
 
@@ -13,7 +13,34 @@ void block::add_propierty(std::string propierty, std::string name)
         {
             if (state.get<json_object>()["properties"].get<json_object>().contains(prop))
             {
-                if (state.get<json_object>()["properties"].get<json_object>()[prop].get<std::string>() != value)
+                if (state.get<json_object>()["properties"].get<json_object>()[prop].get_type() == value.get_type())
+                {
+                    if (value.get_type() == TYPE_JSON::STRING)
+                    {
+                        if (state.get<json_object>()["properties"].get<json_object>()[prop].get<std::string>() != value.get<std::string>())
+                        {
+                            contains_everything = false;
+                            break;
+                        }
+                    }
+                    else if (value.type == TYPE_JSON::BOOL)
+                    {
+                        if (state.get<json_object>()["properties"].get<json_object>()[prop].get<bool>() != value.get<bool>())
+                        {
+                            contains_everything = false;
+                            break;
+                        }
+                    }
+                    else if (value.type == TYPE_JSON::NUMBER)
+                    {
+                        if (state.get<json_object>()["properties"].get<json_object>()[prop].get<long>() != value.get<long>())
+                        {
+                            contains_everything = false;
+                            break;
+                        }
+                    }
+                }
+                else
                 {
                     contains_everything = false;
                     break;

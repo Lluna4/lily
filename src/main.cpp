@@ -500,11 +500,15 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 					if (property == "axis")
 					{
 						if (face.num == 0 || face.num == 1)
-							placed_block.add_propierty("axis", "y");
+							placed_block.add_propierty("axis", json_value("y"));
 						else if (face.num == 2 || face.num == 3)
-							placed_block.add_propierty("axis", "z");
+							placed_block.add_propierty("axis", json_value("z"));
 						else if (face.num == 4 || face.num == 5)
-							placed_block.add_propierty("axis", "x");
+							placed_block.add_propierty("axis", json_value("x"));
+					}
+					if (property == "waterlogged")
+					{
+						placed_block.add_propierty("waterlogged", json_value(false));
 					}
 				}
 				long id = placed_block.actual_id;

@@ -9,6 +9,7 @@ json_value json_parser::parse()
 			index++;
 			json_value ret{};
 			ret.value = parse_object();
+			ret.type = TYPE_JSON::OBJECT;
 			return ret;
 		}
 		if (data[index] == '[')
@@ -16,6 +17,7 @@ json_value json_parser::parse()
 			index++;
 			json_value ret;
 			ret.value = parse_array();
+			ret.type = TYPE_JSON::ARRAY;
 			return ret;
 		}
 		if (data[index] == '"')
@@ -23,18 +25,21 @@ json_value json_parser::parse()
 			index++;
 			json_value ret;
 			ret.value = parse_string();
+			ret.type = TYPE_JSON::STRING;
 			return ret;
 		}
 		if (isdigit(data[index]) != 0)
 		{
 			json_value ret;
 			ret.value = parse_number();
+			ret.type = TYPE_JSON::NUMBER;
 			return ret;
 		}
 		if (data[index] == 't' || data[index] == 'f')
 		{
 			json_value ret;
 			ret.value = parse_bool();
+			ret.type = TYPE_JSON::BOOL;
 			return ret;
 		}
 		index++;

@@ -19,9 +19,9 @@ struct block
         }
     }
     json_value propierties;
-    std::map<std::string, std::string> added_propierties;
+    std::map<std::string, json_value> added_propierties;
     long actual_id;
-    void add_propierty(std::string propierty, std::string value);
+    void add_propierty(std::string propierty, json_value name);
     json_value get_available_propierties();
 };
 
