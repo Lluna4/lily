@@ -594,7 +594,7 @@ int main()
 		}
 		update_keep_alive(sv);
 		const ms duration = clock::now() - before;
-		log(std::format("MSPT {}ms", duration.count()), LOG_LEVEL::NORMAL);
+		//log(std::format("MSPT {}ms", duration.count()), LOG_LEVEL::NORMAL);
 		if (duration.count() <= 50)
 			std::this_thread::sleep_for(std::chrono::milliseconds(50) - duration);
 	}

@@ -4,6 +4,7 @@ project(lily)
 set(CMAKE_CXX_STANDARD 23)
 
 find_package(OpenSSL REQUIRED)
+find_package(Threads REQUIRED)
 
 add_executable(lily src/main.cpp
         src/mc_types.cpp
@@ -19,4 +20,4 @@ add_executable(lily src/main.cpp
         src/blocks.cpp
 )
 
-target_link_libraries(lily PRIVATE OpenSSL::Crypto)
+target_link_libraries(lily PRIVATE OpenSSL::Crypto Threads::Threads)

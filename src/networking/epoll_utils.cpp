@@ -8,7 +8,7 @@ int add_to_epoll(int epfd, int fd)
 	epoll_ev.events = EPOLLIN;
 	return epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &epoll_ev);
 }
-#elif defined (__FreeBSD) || defined(__APPLE__)
+#elif defined (__FreeBSD__) || defined(__APPLE__)
 int add_to_epoll(int epfd, int fd)
 {
 	struct kevent ev;
@@ -22,7 +22,7 @@ int remove_from_epoll(int epfd, int fd)
 {
 	return epoll_ctl(epfd, EPOLL_CTL_DEL, fd, nullptr);
 }
-#elif defined (__FreeBSD) || defined(__APPLE__)
+#elif defined (__FreeBSD__) || defined(__APPLE__)
 int remove_from_epoll(int epfd, int fd)
 {
 	struct kevent ev;
