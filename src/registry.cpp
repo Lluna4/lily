@@ -1,4 +1,6 @@
 #include "registry.h"
+#include "log.h"
+#include <cmath>
 
 static int count_files(std::string path)
 {
@@ -47,7 +49,7 @@ int send_registry(int fd, server &sv)
 						(char)0x0a, minecraft::short_string("narration"),minecraft::string_tag("chat.type.text.narrate", "translation_key"),
 						(char)0x09, minecraft::short_string("parameters"), (char)0x08, (int)2, minecraft::nameless_string_tag("sender"), minecraft::nameless_string_tag("content"), (char)0x00, (char)0x00);
 				sv.send_packet(register_ent, fd, 0x07);
-				std::println("Chat sent at num {}", a);
+				log(std::format("Chat sent at num {}", a), LOG_LEVEL::NORMAL);
 				stop_a = true;
 			}
 			else
@@ -58,7 +60,7 @@ int send_registry(int fd, server &sv)
 			}
 			if (entry.path().stem() == "chat_type")
 			{
-				std::println("{}", ent.path().stem().string());
+				log(std::format("{}", ent.path().stem().string()), LOG_LEVEL::NORMAL);
 			}
 			if (entry.path().stem().string() == "chat_type" && stop_a == false)
 			{

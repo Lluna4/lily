@@ -9,6 +9,7 @@
 #include "buffer.h"
 #include "../mc_types.h"
 #include "../chunk.h"
+#include "../log.h"
 #ifdef __FreeBSD__
 #include <sys/endian.h>
 #endif
@@ -211,7 +212,7 @@ namespace netlib
         header.write(buf.data, buf.size);
 
         int ret = send(sock, header.data, header.size, 0);
-        std::println("Sent {}B", ret);
+        log(std::format("Sent {}B", ret), LOG_LEVEL::NORMAL);
         return ret;
     }
 
@@ -234,7 +235,7 @@ namespace netlib
                 return ret;
             sent += ret;
         }
-        std::println("Sent {}B", sent);
+        log(std::format("Sent {}B", sent), LOG_LEVEL::NORMAL);
         return sent;
     }
 
@@ -253,7 +254,7 @@ namespace netlib
                 return ret;
             sent += ret;
         }
-        std::println("Sent {}B", sent);
+        log(std::format("Sent {}B", sent), LOG_LEVEL::NORMAL);
         return sent;
     }
 

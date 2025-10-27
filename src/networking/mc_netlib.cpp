@@ -5,7 +5,7 @@ void server::disconnect_client(int fd)
 	packets.emplace_back(-1, fd);
 	if (remove_from_epoll(epfd, fd) == -1)
 	{
-		std::println("Removing from epoll failed {}", strerror(errno));
+		log(std::format("Removing from epoll failed {}", strerror(errno)), LOG_LEVEL::ERROR);
 	}
 	close(fd);
 }
@@ -52,7 +52,7 @@ void server::recv_thread()
 				int new_client = accept(fd, nullptr, nullptr);
 				add_to_epoll(epfd, new_client);
 				connections.push_back(new_client);
-				std::println("A client connected!");
+				log("A client connected!", LOG_LEVEL::NORMAL);
 				continue;
 			}
 			netlib::packet dummy_pkt(0);
@@ -114,7 +114,7 @@ void server::send_thread()
 			{
 				disconnect_client(pkt.fd);
 			}
-			std::println("Sent {}B", ret);
+			log(std::format("Sent {}B", ret), LOG_LEVEL::NORMAL);
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
@@ -131,7 +131,7 @@ std::expected<bool, server_error> server::open_server(const char *ip, unsigned s
 	fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd == -1)
 	{
-		std::println("Failed to create socket {}", strerror(errno));
+		log(std::format("Failed to create socket {}", strerror(errno)), LOG_LEVEL::ERROR);
 		return std::unexpected(server_error::SOCKET_ERROR);
 	}
 
@@ -147,14 +147,14 @@ std::expected<bool, server_error> server::open_server(const char *ip, unsigned s
 	if (bind(fd, (sockaddr *)&addr, sizeof(addr)) == -1)
 	{
 		close(fd);
-		std::println("Bind failed! {}", strerror(errno));
+		log(std::format("Bind failed! {}", strerror(errno)), LOG_LEVEL::ERROR);
 		return std::unexpected(server_error::BIND_ERROR);
 	}
 
 	if (listen(fd, 1024) == -1)
 	{
 		close(fd);
-		std::println("Listen failed! {}", strerror(errno));
+		log(std::format("Listen failed! {}", strerror(errno)), LOG_LEVEL::ERROR);
 		return std::unexpected(server_error::LISTEN_ERROR);
 	}
 	#if defined(__APPLE__) || defined(__FreeBSD__)
@@ -165,8 +165,8 @@ std::expected<bool, server_error> server::open_server(const char *ip, unsigned s
 	add_to_epoll(epfd, fd);
 	threads = true;
 	recv_th = std::thread([this]() {this->recv_thread();});
-	std::println("Started receiving thread!");
+	log("Started receiving thread!", LOG_LEVEL::NORMAL);
 	send_th = std::thread([this]() {this->send_thread();});
-	std::println("Started send thread!");
+	log("Started send thread!", LOG_LEVEL::NORMAL);
 	return true;
 }

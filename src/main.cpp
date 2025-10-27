@@ -397,13 +397,13 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
 				auto ret = w.set_block(x, y, z, 0);
 				if (!ret)
-					log("Block placement failed", LOG_LEVEL::NORMAL);
+					log("Block placement failed", LOG_LEVEL::ERROR);
 
 				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(0));
 				send_render_distance(block_update, 0x08, sv, u.x, u.z);
 				auto awknowledge_block = std::make_tuple(minecraft::varint(std::get<SEQUENCE>(player_action)));
 				sv.send_packet(awknowledge_block, fd, 0x04);
-				log(std::format("Block placed was actually {}", items[0]), LOG_LEVEL::NORMAL);
+				//log(std::format("Block placed was actually {}", items[0]), LOG_LEVEL::NORMAL);
 				break;
 			}
 			case 0x34:
@@ -459,7 +459,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 				int y = pos << 52 >> 52;
 				int z = pos << 26 >> 38;
 				minecraft::varint face = std::get<2>(use_item_on);
-				std::println("Face {}", face.num);
+				log(std::format("Face {}", face.num), LOG_LEVEL::NORMAL);
 				switch (face.num)
 				{
 					case 0:
@@ -512,7 +512,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 					}
 				}
 				long id = placed_block.actual_id;
-				std::println("Setting block at x: {} y: {} z: {}", x, y, z);
+				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
 				auto ret = w.set_block(x, y, z, id);
 				if (!ret)
 					log("Block placement failed", LOG_LEVEL::ERROR);
@@ -589,7 +589,7 @@ int main()
 				users.erase(pkt.fd);
 				continue;
 			}
-			log(std::format("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size), LOG_LEVEL::NORMAL);
+			//log(std::format("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size), LOG_LEVEL::NORMAL);
 			execute_packet(pkt.fd, pkt, sv, blocks);
 		}
 		update_keep_alive(sv);

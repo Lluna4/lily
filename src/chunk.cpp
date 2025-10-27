@@ -1,6 +1,5 @@
 #include "chunk.h"
-#include "PerlinNoise.hpp"
-#include "user.h"
+#include "log.h"
 
 int rem_euclid(int a, int b)
 {
@@ -104,7 +103,7 @@ void chunk::generate(std::vector<position_int> &trees)
 			{
 				auto ret = set_block(x_, y, z_, 9);
 				if (!ret)
-					std::println("Set block failed!");
+					log("Set block failed!", LOG_LEVEL::ERROR);
 				if (y == y_max - 1 && y_max >= 64 && tree_x == x_ && tree_z == z_)
 					trees.emplace_back(tree_x + (x * 16), y, tree_z + (z * 16));
 			}
@@ -112,7 +111,8 @@ void chunk::generate(std::vector<position_int> &trees)
 			{
 				for (int y = y_max; y < 64; y++)
 				{
-					set_block(x_, y, z_, 86);
+					if (!set_block(x_, y, z_, 86))
+						log("Set block failed!", LOG_LEVEL::ERROR);
 				}
 			}
 		}
@@ -139,7 +139,7 @@ std::expected<bool, chunk_error> world::set_block(int x, int y, int z, long id)
 	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), id);
 	if (!ret)
 	{
-		std::println("Block placement failed");
+		log("Block placement failed", LOG_LEVEL::ERROR);
 		return std::unexpected(ret.error());
 	}
 	return true;

@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <print>
+#include "log.h"
 #include "json_reader.h"
 
 struct block_state

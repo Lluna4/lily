@@ -1,4 +1,5 @@
 #include "block_registry_processing.h"
+#include "log.h"
 
 void process_item_registry(const std::string& path, std::map<int, std::string> &items)
 {
@@ -87,7 +88,7 @@ void process_item_registry(const std::string& path, std::map<int, std::string> &
 						in_num = true;
 				}
 				items.emplace(atoi(num.c_str()), buf);
-				std::println("added {}: {}", atoi(num.c_str()), buf);
+				log(std::format("added {}: {}", atoi(num.c_str()), buf), LOG_LEVEL::NORMAL);
 				buf.clear();
 			}
 		}

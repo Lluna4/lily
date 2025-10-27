@@ -7,6 +7,7 @@
 #include <random>
 #include "user.h"
 #include "PerlinNoise.hpp"
+#include "log.h"
 
 int rem_euclid(int a, int b);
 
