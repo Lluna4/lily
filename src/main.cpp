@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <format>
 #include <print>
 #include <chrono>
 #include <map>
@@ -553,6 +554,8 @@ int main()
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
+	if(!create_log_file())
+		log("Creating log file failed", LOG_LEVEL::WARNING);
 	server sv{};
 	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
@@ -560,11 +563,8 @@ int main()
 		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);
 		return -1;
 	}
-	if (std::filesystem::exists("log.txt"))
-		std::filesystem::remove("log.txt");
 	process_item_registry("../registries.json", items);
 	block_index blocks("../blocks.json");
-
 	log_id = blocks.get_block("minecraft:oak_log").actual_id;
 	leaves_id = blocks.get_block("minecraft:oak_leaves").actual_id;
 	log("Added block registry", LOG_LEVEL::NORMAL);
