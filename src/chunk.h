@@ -8,8 +8,17 @@
 #include "user.h"
 #include "PerlinNoise.hpp"
 #include "log.h"
+#include "blocks.h"
 
 int rem_euclid(int a, int b);
+
+struct spline
+{
+	double start_noise_val; double end_noise_val;
+	int start_value; int end_value;
+
+	int get_height(double noise_value);
+};
 
 struct coordinates
 {
@@ -55,16 +64,21 @@ struct chunk
 	std::vector<section> sections;
 	int x, z;
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
-	void generate(std::vector<position_int> &trees);
+	void generate(std::vector<position_int> &trees, long continentality_seed, long erosion_seed);
+	void generate(std::vector<position_int> &trees, long continentality_seed, long erosion_seed, int &spawn_y);
+
 };
 
 struct world
 {
 	std::map<std::pair<int, int>, chunk> chunks;
 	std::vector<position_int> trees_to_build;
-
+	long continentality_seed;
+	long erosion_seed;
 	chunk &get_chunk(int x, int z);
-	std::expected<bool, chunk_error> set_block(int x, int y, int z, long id);
+	chunk &get_chunk(int x, int z, int &spawn_y);
+	void generate_seeds();
+	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
 	void build_trees(long log_id, long leaves_id);
 };
 

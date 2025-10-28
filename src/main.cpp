@@ -21,6 +21,9 @@ world w;
 std::map<int, std::string> items;
 long log_id = 0;
 long leaves_id = 0;
+long grass_id;
+long dirt_id;
+int spawn_y = 64;
 
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv)
@@ -65,7 +68,7 @@ void send_render_distance(std::tuple<T...> packet, int id, server &sv, double x,
 	}
 }
 
-void stream_world(user &u, server &sv)
+void stream_world(user &u, server &sv, block_index &blocks)
 {
 	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
 	{
@@ -220,6 +223,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 											(std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
 											(char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
 											false);
+				u.y = spawn_y;
 				sv.send_packet(login, fd, 0x2B);
 				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
 												(double)0.0f, u.yaw, u.pitch, (int)0);
@@ -262,7 +266,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 						chunk &c = w.get_chunk(x, y);
 					}
 				}
-				w.build_trees(log_id, leaves_id);
+				w.build_trees( log_id, leaves_id);
 				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
 				{
 					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
@@ -334,7 +338,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
 															(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096), u.on_ground);
 				send_all_except_user(update_player_position, u, 0x2E, sv);
-				stream_world(u, sv);
+				stream_world(u, sv, blocks);
 				break;
 			}
 			case 0x1E:
@@ -363,7 +367,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 
 				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
 				send_all_except_user(update_head, u, 0x4C, sv);
-				stream_world(u, sv);
+				stream_world(u, sv, blocks);
 				break;
 			}
 			case 0x1F:
@@ -557,7 +561,7 @@ int main()
 	if(!create_log_file())
 		log("Creating log file failed", LOG_LEVEL::WARNING);
 	server sv{};
-	auto ret = sv.open_server("0.0.0.0", 25565);
+	auto ret = sv.open_server("0.0.0.0", 25566);
 	if (!ret)
 	{
 		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);
@@ -568,6 +572,10 @@ int main()
 	log_id = blocks.get_block("minecraft:oak_log").actual_id;
 	leaves_id = blocks.get_block("minecraft:oak_leaves").actual_id;
 	log("Added block registry", LOG_LEVEL::NORMAL);
+	w.generate_seeds();
+	grass_id = blocks.get_block("minecraft:grass_block").actual_id;
+	dirt_id = blocks.get_block("minecraft:dirt").actual_id;
+	w.get_chunk(0, 0, spawn_y);
 	while (true)
 	{
 		const auto before = clock::now();
