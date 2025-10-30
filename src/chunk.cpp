@@ -1,11 +1,12 @@
 #include "chunk.h"
 
-spline high_continentality = {.start_noise_val = 0.6, .end_noise_val = 1.0, .start_value = 150, .end_value = 250};
-spline medium_high_continentality = {.start_noise_val = 0.4, .end_noise_val = 0.6, .start_value = 100, .end_value = 150};
-spline medium_continentality = {.start_noise_val = 0.2, .end_noise_val = 0.4, .start_value = 90, .end_value = 100};
-spline low_medium_continentality = {.start_noise_val = -0.2, .end_noise_val = 0.2, .start_value = 64, .end_value = 90};
-spline neg_y = {.start_noise_val = -1.0, .end_noise_val = -0.2, .start_value = 40, .end_value = 64};
-spline erosion = {.start_noise_val = 0.0, .end_noise_val = 1.0, .start_value = 4, .end_value = 8};
+spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -0.8f, .start_value = 10, .end_value = 40},
+								   {.start_noise_val = -0.8f, .end_noise_val = -0.5f, .start_value = 40, .end_value = 45},
+								   {.start_noise_val = -0.5f, .end_noise_val = -0.3f, .start_value = 45, .end_value = 64},
+								   {.start_noise_val = -0.3f, .end_noise_val = 0.5f, .start_value = 64, .end_value = 90},
+								   {.start_noise_val = 0.5f, .end_noise_val = 0.7f, .start_value = 90, .end_value = 120},
+								   {.start_noise_val = 0.7f, .end_noise_val = 0.9f, .start_value = 120, .end_value = 170},
+								   {.start_noise_val = 0.9f, .end_noise_val = 1.01f, .start_value = 170, .end_value = 220}}};
 
 int rem_euclid(int a, int b)
 {
@@ -17,11 +18,23 @@ int rem_euclid(int a, int b)
 	return ret;
 }
 
-int spline::get_height(double noise_value)
+int dot::get_height(double noise_value)
 {
 	int n = abs(end_value - start_value)/abs(end_noise_val - start_noise_val);
 
 	return n * (noise_value - start_noise_val) + start_value;
+}
+
+int spline::get_value(double noise_value)
+{
+	for (auto &d: dots)
+	{
+		if (noise_value >= d.start_noise_val && noise_value < d.end_noise_val)
+		{
+			return d.get_height(noise_value);
+		}
+	}
+	return 0;
 }
 
 std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int place_z, int id)
@@ -108,20 +121,11 @@ void chunk::generate(std::vector<position_int> &trees, long continentality_seed,
 		{
 			int world_x = x * 16 + x_;
 			int world_z = z * 16 + z_;
-			const double erosion_val = erosion_noise.octave2D_01(world_x * 0.00005, world_z * 0.00005, 4);
-			int octaves = erosion.get_height(erosion_val);
-			const double value = continentality_noise.octave2D_11(world_x * 0.0008, world_z * 0.0008, octaves);
+			/*const double erosion_val = erosion_noise.octave2D_01(world_x * 0.005221649073064327, world_z * 0.005221649073064327, 16);
+			int octaves = erosion.get_height(erosion_val);*/
+			const double value = continentality_noise.octave2D_11(world_x * 0.003221649073064327, world_z * 0.00322164907306432, 6);
 
-			if (value <= -0.2f) //this is still terrible, but its just for testing
-				y_max = neg_y.get_height(value);
-			else if (value <= 0.2f)
-				y_max = low_medium_continentality.get_height(value);
-			else if (value <= 0.4f)
-				y_max = medium_continentality.get_height(value);
-			else if (value <= 0.6f)
-				y_max = medium_high_continentality.get_height(value);
-			else
-				y_max = high_continentality.get_height(value);
+			y_max = continentalness.get_value(value);
 			for (int y = -64; y < y_max; y++)
 			{
 				if (y < y_max - 1)
@@ -135,7 +139,7 @@ void chunk::generate(std::vector<position_int> &trees, long continentality_seed,
 			}
 			if (y_max < 64)
 			{
-				for (int y = y_max; y < 64; y++)
+				for (int y = y_max - 1; y < 64; y++)
 				{
 					if (!set_block(x_, y, z_, 86))
 						log("Set block failed!", LOG_LEVEL::ERROR);
@@ -166,20 +170,9 @@ void chunk::generate(std::vector<position_int> &trees, long continentality_seed,
 
 			int world_x = x * 16 + x_;
 			int world_z = z * 16 + z_;
-			const double erosion_val = erosion_noise.octave2D_01(world_x * 0.00005, world_z * 0.00005, 4);
-			int octaves = erosion.get_height(erosion_val);
-			const double value = continentality_noise.octave2D_11(world_x * 0.0008, world_z * 0.0008, octaves);
+			const double value = continentality_noise.octave2D_11(world_x * 0.003221649073064327, world_z * 0.00322164907306432, 16);
 
-			if (value <= -0.2f) //this is still terrible, but its just for testing
-				y_max = neg_y.get_height(value);
-			else if (value <= 0.2f)
-				y_max = low_medium_continentality.get_height(value);
-			else if (value <= 0.4f)
-				y_max = medium_continentality.get_height(value);
-			else if (value <= 0.6f)
-				y_max = medium_high_continentality.get_height(value);
-			else
-				y_max = high_continentality.get_height(value);
+			y_max = continentalness.get_value(value);
 
 			if (x_ == 0 && z_ == 0)
 				spawn_y = y_max;
@@ -194,7 +187,7 @@ void chunk::generate(std::vector<position_int> &trees, long continentality_seed,
 				if (y == y_max - 1 && y_max >= 64 && tree_x == x_ && tree_z == z_)
 					trees.emplace_back(tree_x + (x * 16), y, tree_z + (z * 16));
 			}
-			if (y_max < 64)
+			if (y_max < 64 - 1)
 			{
 				for (int y = y_max; y < 64; y++)
 				{

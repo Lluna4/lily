@@ -12,12 +12,19 @@
 
 int rem_euclid(int a, int b);
 
-struct spline
+struct dot
 {
 	double start_noise_val; double end_noise_val;
 	int start_value; int end_value;
 
 	int get_height(double noise_value);
+};
+
+struct spline
+{
+	std::vector<dot> dots;
+
+	int get_value(double noise_value);
 };
 
 struct coordinates
