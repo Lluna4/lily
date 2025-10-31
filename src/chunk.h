@@ -71,8 +71,7 @@ struct chunk
 	std::vector<section> sections;
 	int x, z;
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
-	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise);
-	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, int &spawn_y);
+	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y = nullptr);
 
 };
 
@@ -89,7 +88,7 @@ struct world
 	siv::PerlinNoise bush_noise;
 	siv::PerlinNoise tree_noise;
 	chunk &get_chunk(int x, int z);
-	chunk &get_chunk(int x, int z, int &spawn_y);
+	chunk &get_chunk(int x, int z, int *spawn_y);
 	void generate_seeds();
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
 	void build_trees(long log_id, long leaves_id);

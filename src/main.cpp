@@ -575,7 +575,7 @@ int main()
 	w.generate_seeds();
 	grass_id = blocks.get_block("minecraft:grass_block").actual_id;
 	dirt_id = blocks.get_block("minecraft:dirt").actual_id;
-	w.get_chunk(0, 0, spawn_y);
+	w.get_chunk(0, 0, &spawn_y);
 	while (true)
 	{
 		const auto before = clock::now();
