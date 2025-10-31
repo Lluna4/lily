@@ -1,4 +1,5 @@
 #include "chunk.h"
+#include "PerlinNoise.hpp"
 
 spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -0.8f, .start_value = 10, .end_value = 40},
 								   {.start_noise_val = -0.8f, .end_noise_val = -0.5f, .start_value = 40, .end_value = 45},
@@ -101,16 +102,79 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	return true;
 }
 
-void chunk::generate(std::vector<position_int> &trees, long continentality_seed, long erosion_seed)
+void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise)
+{
+	int y_max = 64;
+	for (int z_ = 0; z_ < 16; z_++)
+	{
+		for (int x_ = 0; x_ < 16; x_++)
+		{
+
+			int world_x = x * 16 + x_;
+			int world_z = z * 16 + z_;
+
+			const double value = continentality_noise.octave2D_11(world_x * 0.003221649073064327, world_z * 0.00322164907306432, 6);
+
+			int y_max = continentalness.get_value(value);
+			
+			
+			/*double bias = 0.0f;
+
+			if (y_max_max > 64)
+				bias += y_max_max * 0.00284810126;
+			for (int y = y_max_max; y > -64; y--)
+			{
+				const double value = main_noise.octave3D(world_x * 0.005221649073064327, y * 0.0026108245365321636 ,world_z * 0.005221649073064327, 16);
+				if (value > (0.0f + bias))
+				{
+					y_max = y;
+					break;
+				}
+				bias-= 0.00284810126;
+			}*/
+
+			for (int y = -64; y < y_max; y++)
+			{
+				if (y < y_max - 1)
+					auto ret = set_block(x_, y, z_, 10);
+				else if (y_max >= 64)
+					auto ret = set_block(x_, y, z_, 9);
+				/*if (!ret)
+					log("Set block failed!", LOG_LEVEL::ERROR);*/
+				if (y == y_max - 1 && y_max >= 64)
+				{
+					const double bush_val = bush_noise.noise2D(world_x, world_z);
+					if (bush_val > 0.4f)
+					{
+						auto ret = set_block(x_, y + 1, z_, 11645);
+						auto ret2 = set_block(x_, y + 2, z_, 11644);
+					}
+					else if (bush_val > 0.0f)
+						auto ret = set_block(x_, y + 1, z_, 2048);
+
+					const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
+					if (tree_val > 0.6f)
+						trees.emplace_back(world_x, y, world_z);
+				}
+			}
+			if (y_max < 64)
+			{
+				for (int y = y_max - 1; y < 64; y++)
+				{
+					if (!set_block(x_, y, z_, 86))
+						log("Set block failed!", LOG_LEVEL::ERROR);
+				}
+			}
+		}
+	}
+}
+
+void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, int &spawn_y)
 {
 	std::random_device dev;
 	std::mt19937 rng(dev());
 	std::uniform_int_distribution<std::mt19937::result_type> dist(1,18);
-	const siv::PerlinNoise::seed_type seed = continentality_seed;
-	const siv::PerlinNoise continentality_noise{ seed };
 
-	const siv::PerlinNoise::seed_type seed2 = erosion_seed;
-	const siv::PerlinNoise erosion_noise{ seed2 };
 
 	int tree_x = dist(rng);
 	int tree_z = dist(rng);
@@ -119,13 +183,31 @@ void chunk::generate(std::vector<position_int> &trees, long continentality_seed,
 	{
 		for (int x_ = 0; x_ < 16; x_++)
 		{
+
 			int world_x = x * 16 + x_;
 			int world_z = z * 16 + z_;
-			/*const double erosion_val = erosion_noise.octave2D_01(world_x * 0.005221649073064327, world_z * 0.005221649073064327, 16);
-			int octaves = erosion.get_height(erosion_val);*/
+
 			const double value = continentality_noise.octave2D_11(world_x * 0.003221649073064327, world_z * 0.00322164907306432, 6);
 
-			y_max = continentalness.get_value(value);
+			int y_max = continentalness.get_value(value);
+			
+			/*double bias = 0.0f;
+
+			if (y_max_max > 64)
+				bias += y_max_max * 0.00284810126;
+			for (int y = y_max_max; y > -64; y--)
+			{
+				const double value = main_noise.octave3D(world_x * 0.005221649073064327, y * 0.0026108245365321636 ,world_z * 0.005221649073064327, 16);
+				if (value > (0.0f + bias))
+				{
+					y_max = y;
+					break;
+				}
+				bias-= 0.00284810126;
+			}*/
+
+			if (x_ == 0 && z_ == 0)
+				spawn_y = y_max;
 			for (int y = -64; y < y_max; y++)
 			{
 				if (y < y_max - 1)
@@ -149,56 +231,6 @@ void chunk::generate(std::vector<position_int> &trees, long continentality_seed,
 	}
 }
 
-void chunk::generate(std::vector<position_int> &trees, long continentality_seed, long erosion_seed, int &spawn_y)
-{
-	std::random_device dev;
-	std::mt19937 rng(dev());
-	std::uniform_int_distribution<std::mt19937::result_type> dist(1,20);
-	const siv::PerlinNoise::seed_type seed = continentality_seed;
-	const siv::PerlinNoise continentality_noise{ seed };
-
-	const siv::PerlinNoise::seed_type seed2 = erosion_seed;
-	const siv::PerlinNoise erosion_noise{ seed2 };
-
-	int tree_x = dist(rng);
-	int tree_z = dist(rng);
-	int y_max = 64;
-	for (int z_ = 0; z_ < 16; z_++)
-	{
-		for (int x_ = 0; x_ < 16; x_++)
-		{
-
-			int world_x = x * 16 + x_;
-			int world_z = z * 16 + z_;
-			const double value = continentality_noise.octave2D_11(world_x * 0.003221649073064327, world_z * 0.00322164907306432, 16);
-
-			y_max = continentalness.get_value(value);
-
-			if (x_ == 0 && z_ == 0)
-				spawn_y = y_max;
-			for (int y = -64; y < y_max; y++)
-			{
-				if (y < y_max - 1)
-					auto ret = set_block(x_, y, z_, 10);
-				else if (y_max >= 64)
-					auto ret = set_block(x_, y, z_, 9);
-				/*if (!ret)
-					log("Set block failed!", LOG_LEVEL::ERROR);*/
-				if (y == y_max - 1 && y_max >= 64 && tree_x == x_ && tree_z == z_)
-					trees.emplace_back(tree_x + (x * 16), y, tree_z + (z * 16));
-			}
-			if (y_max < 64 - 1)
-			{
-				for (int y = y_max; y < 64; y++)
-				{
-					if (!set_block(x_, y, z_, 86))
-						log("Set block failed!", LOG_LEVEL::ERROR);
-				}
-			}
-		}
-	}
-}
-
 
 chunk & world::get_chunk(int x, int z)
 {
@@ -206,7 +238,7 @@ chunk & world::get_chunk(int x, int z)
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate(trees_to_build, continentality_seed, erosion_seed);
+		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise);
 		return chunk;
 	}
 	return ret->second;
@@ -218,7 +250,7 @@ chunk & world::get_chunk(int x, int z, int &spawn_y)
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate(trees_to_build, continentality_seed, erosion_seed, spawn_y);
+		chunk.generate(trees_to_build, continentality_noise, main_noise ,spawn_y);
 		return chunk;
 	}
 	return ret->second;
@@ -232,6 +264,13 @@ void world::generate_seeds()
 
 	continentality_seed = dist(rng);
 	erosion_seed = dist(rng);
+	bush_seed = dist(rng);
+	tree_seed = dist(rng);
+
+	main_noise = siv::PerlinNoise {erosion_seed};
+	continentality_noise = siv::PerlinNoise {continentality_seed};
+	bush_noise = siv::PerlinNoise {bush_seed};
+	tree_noise = siv::PerlinNoise {tree_seed};
 }
 
 

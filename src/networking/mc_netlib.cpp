@@ -113,6 +113,7 @@ void server::send_thread()
 			if (ret == 0 || ret == -1)
 			{
 				disconnect_client(pkt.fd);
+				break;
 			}
 			log(std::format("Sent {}B", ret), LOG_LEVEL::NORMAL);
 		}

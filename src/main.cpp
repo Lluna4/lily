@@ -561,7 +561,7 @@ int main()
 	if(!create_log_file())
 		log("Creating log file failed", LOG_LEVEL::WARNING);
 	server sv{};
-	auto ret = sv.open_server("0.0.0.0", 25566);
+	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
 	{
 		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);
