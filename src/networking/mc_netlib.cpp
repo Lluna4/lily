@@ -55,6 +55,8 @@ void server::recv_thread()
 				log("A client connected!", LOG_LEVEL::NORMAL);
 				continue;
 			}
+			if (std::find(connections.begin(), connections.end(), current_fd) == connections.end())
+				continue;
 			netlib::packet dummy_pkt(0);
 			dummy_pkt.data.allocate(5); //max for 1 varint
 			int ret = recv(current_fd, dummy_pkt.data.data, 5, MSG_PEEK);

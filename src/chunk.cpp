@@ -111,6 +111,10 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 
 void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y)
 {
+	using clock = std::chrono::system_clock;
+	using ms = std::chrono::duration<double, std::milli>;
+
+	const auto before = clock::now();
 	int y_max = 64;
 	for (int z_ = 0; z_ < 16; z_++)
 	{
@@ -175,6 +179,8 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 			}
 		}
 	}
+	const ms duration = clock::now() - before;
+	log(std::format("Chunk generation took {}ms", duration), LOG_LEVEL::NORMAL);
 }
 
 
