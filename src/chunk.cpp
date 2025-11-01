@@ -6,7 +6,7 @@ spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -
 								   {.start_noise_val = -0.3f, .end_noise_val = 0.5f, .start_value = 64, .end_value = 90},
 								   {.start_noise_val = 0.5f, .end_noise_val = 0.7f, .start_value = 90, .end_value = 120},
 								   {.start_noise_val = 0.7f, .end_noise_val = 0.9f, .start_value = 120, .end_value = 170},
-								   {.start_noise_val = 0.9f, .end_noise_val = 1.01f, .start_value = 170, .end_value = 220}}};
+								   {.start_noise_val = 0.9f, .end_noise_val = 1.01f, .start_value = 170, .end_value = 250}}};
 
 int rem_euclid(int a, int b)
 {
@@ -51,7 +51,11 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 			if (sec.blocks.size() == 1)
 			{
 				if (i != sec.blocks[0])
+				{
 					sec.blocks.resize(4096);
+					for (int i = 1; i < 4096; i++)
+						sec.blocks[i] = sec.blocks[0];
+				}
 			}
 			palette_index = i;
 			break;
@@ -60,7 +64,11 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	if (palette_index == -1)
 	{
 		if (sec.blocks.empty() || sec.blocks.size() == 1)
+		{
 			sec.blocks.resize(4096);
+			for (int i = 1; i < 4096; i++)
+				sec.blocks[i] = sec.blocks[0];
+		}
 		sec.palette.push_back(id);
 		palette_index = sec.palette.size() - 1;
 	}
