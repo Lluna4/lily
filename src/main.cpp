@@ -567,8 +567,8 @@ int main()
 		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);
 		return -1;
 	}
-	process_item_registry("../registries.json", items);
-	block_index blocks("../blocks.json");
+	process_item_registry("../generated/reports/registries.json", items);
+	block_index blocks("../generated/reports/blocks.json");
 	log_id = blocks.get_block("minecraft:oak_log").actual_id;
 	leaves_id = blocks.get_block("minecraft:oak_leaves").actual_id;
 	log("Added block registry", LOG_LEVEL::NORMAL);

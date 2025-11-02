@@ -18,9 +18,15 @@ int send_registry(int fd, server &sv)
 {
 	int a = 0;
 	bool stop_a = false;
-	for (const auto & entry : std::filesystem::directory_iterator("../minecraft"))
+	for (const auto & entry : std::filesystem::directory_iterator("../generated/data/minecraft"))
 	{
 		if (entry.path().filename().string().starts_with("."))
+			continue;
+		if (entry.path().filename().string().starts_with("enchantment"))
+			continue;
+		if (entry.path().filename().string().starts_with("datapacks"))
+			continue;
+		if (entry.path().filename().string().starts_with("dialog"))
 			continue;
 		//std::println("Sending folder {}", entry.path().filename().string());
 		for (const auto & ent : std::filesystem::directory_iterator(entry.path()))

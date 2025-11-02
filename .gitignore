@@ -1,0 +1,7 @@
+generated/
+build/
+.vscode/
+.idea/
+.cache/
+cmake-build-release/
+cmake-build-debug/
