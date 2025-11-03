@@ -119,6 +119,7 @@ void server::send_thread()
 			}
 			log(std::format("Sent {}B", ret), LOG_LEVEL::NORMAL);
 		}
+		s_packets.clear();
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 }

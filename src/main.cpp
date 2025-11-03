@@ -16,6 +16,7 @@
 #include "blocks.h"
 
 std::map<int, user> users;
+std::vector<int> disconnected;
 int chat_id = 0;
 world w;
 std::map<int, std::string> items;
@@ -150,14 +151,23 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 		switch (packet.id)
 		{
 			case 0:
+				if (packet.size < 4)
+				{
+					sv.disconnect_client(fd);
+					u.state = STATE::DISCONNECTED;
+					disconnected.push_back(fd);
+					break;
+				}
 				std::tuple<minecraft::varint, minecraft::string, unsigned short, minecraft::varint> handshake;
 				handshake = netlib::read_packet(std::move(handshake), packet);
 				log(std::format("Received handshake packet with version {} address {} port {} intent {}",
 					std::get<VERSION>(handshake).num, std::get<ADDRESS>(handshake).data.data, std::get<PORT>(handshake), std::get<INTENT>(handshake).num), LOG_LEVEL::NORMAL);
+				
 				if (std::get<0>(handshake).num != 772)
 				{
 					sv.disconnect_client(fd);
-					users.erase(fd);
+					u.state = STATE::DISCONNECTED;
+					disconnected.push_back(fd);
 					break;
 				}
 				if (std::get<3>(handshake).num == 1)
@@ -310,7 +320,8 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 				if (std::get<0>(keep_alive_response) != 4 || u.sent == false)
 				{
 					sv.disconnect_client(fd);
-					users.erase(fd);
+					u.state = STATE::DISCONNECTED;
+					disconnected.push_back(fd);
 					break;
 				}
 				u.ticks_to_keepalive = 500;
@@ -599,6 +610,8 @@ int main()
 			}
 			//log(std::format("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size), LOG_LEVEL::NORMAL);
 			execute_packet(pkt.fd, pkt, sv, blocks);
+			for (auto &disconnect: disconnected)
+				users.erase(disconnect);
 		}
 		update_keep_alive(sv);
 		const ms duration = clock::now() - before;

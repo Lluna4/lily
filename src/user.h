@@ -5,6 +5,7 @@
 
 enum class STATE
 {
+	DISCONNECTED,
 	HANDSHAKE,
 	STATUS,
 	LOGIN,
