@@ -106,6 +106,7 @@ void server::send_thread()
 	while (threads == true)
 	{
 		std::unique_lock lock(send_mut);
+		notify_send.wait(lock);
 		std::vector<netlib::packet> s_packets = std::move(send_packets);
 		send_packets.clear();
 		lock.unlock();
@@ -117,10 +118,9 @@ void server::send_thread()
 				disconnect_client(pkt.fd);
 				break;
 			}
-			log(std::format("Sent {}B", ret), LOG_LEVEL::NORMAL);
+			//log(std::format("Sent {}B", ret), LOG_LEVEL::NORMAL);
 		}
 		s_packets.clear();
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 }
 

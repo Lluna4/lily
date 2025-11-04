@@ -7,6 +7,7 @@
 #include <print>
 #include "log.h"
 #include "json_reader.h"
+#include "blocks.h"
 
 struct block_state
 {
@@ -15,4 +16,4 @@ struct block_state
 };
 
 void process_item_registry(const std::string& path, std::map<int, std::string> &items);
-json_value process_block_registry(const std::string& path);
+std::map<std::string, block> process_block_registry(const std::string& path);

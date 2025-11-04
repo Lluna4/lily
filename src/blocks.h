@@ -1,7 +1,6 @@
 #pragma once
 
 #include "log.h"
-#include "block_registry_processing.h"
 #include "json_reader.h"
 #include <map>
 
@@ -23,15 +22,4 @@ struct block
     long actual_id;
     void add_propierty(std::string propierty, json_value name);
     json_value get_available_propierties();
-};
-
-struct block_index
-{
-    block_index(std::string path)
-    {
-        blocks = process_block_registry(path);
-    }
-    json_value blocks;
-
-    block get_block(std::string name);
 };

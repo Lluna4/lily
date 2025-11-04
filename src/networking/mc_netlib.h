@@ -1,4 +1,5 @@
 #pragma once
+#include <condition_variable>
 #include <vector>
 #include <thread>
 #include <expected>
@@ -94,8 +95,10 @@ class server
 			header.size += minecraft::write_varint(&header.data[header.size], id);
 			header.write(buf.data, buf.size);
 
-			std::lock_guard lock(send_mut);
+			std::unique_lock lock(send_mut);
 			send_packets.emplace_back(id, header.size, 0, std::move(header), send_fd);
+			lock.unlock();
+			notify_send.notify_all();
 		}
 
 		template<typename ...T>
@@ -109,8 +112,10 @@ class server
 			header.size += minecraft::write_varint(header.data, id_size);
 			header.size += minecraft::write_varint(&header.data[header.size], id);
 
-			std::lock_guard lock(send_mut);
+			std::unique_lock lock(send_mut);
 			send_packets.emplace_back(id, header.size, 0, std::move(header), send_fd);
+			lock.unlock();
+			notify_send.notify_all();
 		}
 
 		std::vector<netlib::packet> get_packets();
@@ -127,5 +132,6 @@ class server
 		std::atomic_bool threads;
 		std::mutex mut;
 		std::mutex send_mut;
+		std::condition_variable notify_send;
 
 };

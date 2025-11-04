@@ -4,7 +4,9 @@
 #include <chrono>
 #include <map>
 #include <cmath>
+#include <tuple>
 #include "json_reader.h"
+#include "mc_types.h"
 #include "user.h"
 #include "networking/mc_netlib.h"
 #include "packet_arguments.h"
@@ -69,7 +71,7 @@ void send_render_distance(std::tuple<T...> packet, int id, server &sv, double x,
 	}
 }
 
-void stream_world(user &u, server &sv, block_index &blocks)
+void stream_world(user &u, server &sv)
 {
 	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
 	{
@@ -92,7 +94,7 @@ void stream_world(user &u, server &sv, block_index &blocks)
 				chunk &c = w.get_chunk(x, z);
 			}
 		}
-		w.build_trees(log_id, leaves_id);
+		w.build_trees();
 		for (int x = chunk_start_x; x < chunk_start_x + 2; x++)
 		{
 			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 1; z++)
@@ -120,7 +122,7 @@ void stream_world(user &u, server &sv, block_index &blocks)
 				chunk &c = w.get_chunk(x, z);
 			}
 		}
-		w.build_trees(log_id, leaves_id);
+		w.build_trees();
 		for (int z = chunk_start_z; z < chunk_start_z + 2; z++)
 		{
 			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 1; x++)
@@ -137,7 +139,7 @@ void stream_world(user &u, server &sv, block_index &blocks)
 
 }
 
-void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blocks)
+void execute_packet(int fd, netlib::packet &packet, server &sv)
 {
 	if (!users.contains(fd))
 	{
@@ -213,6 +215,10 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 				auto known_packs = std::make_tuple(minecraft::varint(1), std::string("minecraft"), std::string("core"), std::string("1.21.8"));
 				sv.send_packet(known_packs, fd, 0x0E);
 				chat_id = send_registry(fd, sv);
+
+				/*auto update_tags = std::make_tuple(minecraft::varint(1), std::string("minecraft:fluid"), minecraft::varint(1),
+													minecraft::varint(w.blocks.find("minecraft:water")->second.actual_id));
+				sv.send_packet(update_tags, fd, 0x0D);*/
 				sv.send_packet(fd, 0x03);
 				break;
 			}
@@ -276,7 +282,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 						chunk &c = w.get_chunk(x, y);
 					}
 				}
-				w.build_trees( log_id, leaves_id);
+				w.build_trees();
 				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
 				{
 					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
@@ -349,7 +355,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
 															(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096), u.on_ground);
 				send_all_except_user(update_player_position, u, 0x2E, sv);
-				stream_world(u, sv, blocks);
+				stream_world(u, sv);
 				break;
 			}
 			case 0x1E:
@@ -378,7 +384,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 
 				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
 				send_all_except_user(update_head, u, 0x4C, sv);
-				stream_world(u, sv, blocks);
+				stream_world(u, sv);
 				break;
 			}
 			case 0x1F:
@@ -508,7 +514,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv, block_index &blo
 				if (colliding)
 					break;
 
-				block placed_block = blocks.get_block(items[u.inventory[u.held_item + 36]]);
+				block placed_block = w.blocks.find(items[u.inventory[u.held_item + 36]])->second;
 				auto props = placed_block.get_available_propierties();
 
 				for (auto &[property, value]: props.get<json_object>())
@@ -579,13 +585,10 @@ int main()
 		return -1;
 	}
 	process_item_registry("../generated/reports/registries.json", items);
-	block_index blocks("../generated/reports/blocks.json");
-	log_id = blocks.get_block("minecraft:oak_log").actual_id;
-	leaves_id = blocks.get_block("minecraft:oak_leaves").actual_id;
+	w.blocks = process_block_registry("../generated/reports/blocks.json");
+	w.blocks.find("minecraft:water")->second.add_propierty("level", json_value(15));
 	log("Added block registry", LOG_LEVEL::NORMAL);
 	w.generate_seeds();
-	grass_id = blocks.get_block("minecraft:grass_block").actual_id;
-	dirt_id = blocks.get_block("minecraft:dirt").actual_id;
 	w.get_chunk(0, 0, &spawn_y);
 	while (true)
 	{
@@ -609,7 +612,7 @@ int main()
 				continue;
 			}
 			//log(std::format("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size), LOG_LEVEL::NORMAL);
-			execute_packet(pkt.fd, pkt, sv, blocks);
+			execute_packet(pkt.fd, pkt, sv);
 			for (auto &disconnect: disconnected)
 				users.erase(disconnect);
 		}

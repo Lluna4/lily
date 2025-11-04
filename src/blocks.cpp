@@ -65,13 +65,3 @@ json_value block::get_available_propierties()
 {
     return propierties.get<json_object>()["properties"];
 }
-
-block block_index::get_block(std::string name)
-{
-    json_object b = blocks.get<json_object>()[name].get<json_object>();
-
-    json_value val(b);
-    block ret(val);
-
-    return ret;
-}

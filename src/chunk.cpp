@@ -1,4 +1,5 @@
 #include "chunk.h"
+#include "json_reader.h"
 
 spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -0.8f, .start_value = 10, .end_value = 40},
 								   {.start_noise_val = -0.8f, .end_noise_val = -0.5f, .start_value = 40, .end_value = 45},
@@ -109,13 +110,21 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	return true;
 }
 
-void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y)
+void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, std::map<std::string, block> &blocks, int *spawn_y)
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
 
 	const auto before = clock::now();
 	int y_max = 64;
+	long dirt_id = blocks.find("minecraft:dirt")->second.actual_id;
+	long grass_id = blocks.find("minecraft:grass_block")->second.actual_id;
+	block tall_grass = blocks.find("minecraft:tall_grass")->second;
+	long lower_tall_grass = tall_grass.actual_id;
+	tall_grass.add_propierty("half", json_value("upper"));
+	long higher_tall_grass = tall_grass.actual_id;
+	long water = blocks.find("minecraft:water")->second.actual_id;
+
 	for (int z_ = 0; z_ < 16; z_++)
 	{
 		for (int x_ = 0; x_ < 16; x_++)
@@ -148,9 +157,9 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 			for (int y = -64; y < y_max; y++)
 			{
 				if (y < y_max - 1)
-					auto ret = set_block(x_, y, z_, 10);
+					auto ret = set_block(x_, y, z_, dirt_id);
 				else if (y_max >= 64)
-					auto ret = set_block(x_, y, z_, 9);
+					auto ret = set_block(x_, y, z_, grass_id);
 				/*if (!ret)
 					log("Set block failed!", LOG_LEVEL::ERROR);*/
 				if (y == y_max - 1 && y_max >= 64)
@@ -158,8 +167,8 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 					const double bush_val = bush_noise.noise2D(world_x, world_z);
 					if (bush_val > 0.4f)
 					{
-						auto ret = set_block(x_, y + 1, z_, 11645);
-						auto ret2 = set_block(x_, y + 2, z_, 11644);
+						auto ret = set_block(x_, y + 1, z_, lower_tall_grass);
+						auto ret2 = set_block(x_, y + 2, z_, higher_tall_grass);
 					}
 					else if (bush_val > 0.0f)
 						auto ret = set_block(x_, y + 1, z_, 2048);
@@ -173,7 +182,7 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 			{
 				for (int y = y_max - 1; y < 64; y++)
 				{
-					if (!set_block(x_, y, z_, 86))
+					if (!set_block(x_, y, z_, water))
 						log("Set block failed!", LOG_LEVEL::ERROR);
 				}
 			}
@@ -190,7 +199,7 @@ chunk & world::get_chunk(int x, int z)
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise);
+		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, blocks);
 		return chunk;
 	}
 	return ret->second;
@@ -202,7 +211,7 @@ chunk & world::get_chunk(int x, int z, int *spawn_y)
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise ,spawn_y);
+		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, blocks, spawn_y);
 		return chunk;
 	}
 	return ret->second;
@@ -239,8 +248,10 @@ std::expected<bool, chunk_error> world::set_block(int x, int y, int z, int id)
 }
 
 
-void world::build_trees(long log_id, long leaves_id)
+void world::build_trees()
 {
+	long log_id = blocks.find("minecraft:oak_log")->second.actual_id;
+	long leaves_id = blocks.find("minecraft:oak_leaves")->second.actual_id;
 	for (auto &pos: trees_to_build)
 	{
 		set_block(pos.x, pos.y + 1, pos.z, log_id);

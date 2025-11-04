@@ -1,5 +1,8 @@
 #include "block_registry_processing.h"
+#include "json_reader.h"
 #include "log.h"
+#include <tuple>
+#include <utility>
 
 void process_item_registry(const std::string& path, std::map<int, std::string> &items)
 {
@@ -96,15 +99,23 @@ void process_item_registry(const std::string& path, std::map<int, std::string> &
 	registry.close();
 }
 
-json_value process_block_registry(const std::string& path)
+std::map<std::string, block> process_block_registry(const std::string& path)
 {
+	std::map<std::string, block> blocks;
 	if (!std::filesystem::exists(path))
-		return json_value{};
+		return blocks;
 	std::ifstream registry(path);
 	std::stringstream buffer;
 	buffer << registry.rdbuf();
 	std::string d = buffer.str();
 	json_parser p((char *)d.c_str());
 	registry.close();
-	return p.parse();
+	json_value val = p.parse();
+	
+	for (auto &[key, val]: val.get<json_object>())
+	{
+		blocks.emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple(val));
+	}
+
+	return blocks;
 }
