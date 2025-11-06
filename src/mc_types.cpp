@@ -58,5 +58,6 @@ void minecraft::read_string(char *dat, minecraft::string &out)
 
 	dat += size.size;
 	out.data.write(dat, size.num);
+	out.data.write("\0", 1);
 	out.size = (size.size + size.num);
 }
