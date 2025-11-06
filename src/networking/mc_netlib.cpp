@@ -1,13 +1,15 @@
 #include "mc_netlib.h"
 
-void server::disconnect_client(int fd)
+void server::disconnect_client(int remove_fd)
 {
-	packets.emplace_back(-1, fd);
-	if (remove_from_epoll(epfd, fd) == -1)
+	packets.emplace_back(-1, remove_fd);
+	std::lock_guard lock(connections_mut);
+	connections.erase(std::remove(connections.begin(), connections.end(), remove_fd), connections.end());
+	if (remove_from_epoll(epfd, remove_fd) == -1)
 	{
 		log(std::format("Removing from epoll failed {}", strerror(errno)), LOG_LEVEL::ERROR);
 	}
-	close(fd);
+	close(remove_fd);
 }
 
 std::vector<netlib::packet> server::get_packets()
@@ -51,7 +53,9 @@ void server::recv_thread()
 			{
 				int new_client = accept(fd, nullptr, nullptr);
 				add_to_epoll(epfd, new_client);
+				std::unique_lock lock(connections_mut);
 				connections.push_back(new_client);
+				lock.unlock();
 				log("A client connected!", LOG_LEVEL::NORMAL);
 				continue;
 			}
@@ -95,7 +99,7 @@ void server::recv_thread()
 
 			head = netlib::read_packet(head, dummy_pkt);
 			unsigned long header_size = (std::get<0>(head).size + std::get<1>(head).size);
-			std::lock_guard<std::mutex> lock(mut);
+			std::lock_guard lock(mut);
 			packets.emplace_back(std::get<0>(head).num, std::get<1>(head).num, header_size, std::move(dummy_pkt.data), current_fd);
 		}
 	}
@@ -106,12 +110,14 @@ void server::send_thread()
 	while (threads == true)
 	{
 		std::unique_lock lock(send_mut);
-		notify_send.wait(lock);
+		notify_send.wait_for(lock, std::chrono::milliseconds(10));
 		std::vector<netlib::packet> s_packets = std::move(send_packets);
 		send_packets.clear();
 		lock.unlock();
 		for (auto &pkt: s_packets)
 		{
+			if (std::find(connections.begin(), connections.end(), pkt.fd) == connections.end())
+				continue;
 			ssize_t ret = send(pkt.fd, pkt.data.data, pkt.data.size, 0);
 			if (ret == 0 || ret == -1)
 			{

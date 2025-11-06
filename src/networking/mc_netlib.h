@@ -132,6 +132,7 @@ class server
 		std::atomic_bool threads;
 		std::mutex mut;
 		std::mutex send_mut;
+		std::mutex connections_mut;
 		std::condition_variable notify_send;
 
 };

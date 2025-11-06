@@ -241,6 +241,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 											false);
 				u.y = spawn_y;
 				sv.send_packet(login, fd, 0x2B);
+
 				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
 												(double)0.0f, u.yaw, u.pitch, (int)0);
 				sv.send_packet(sync_pos, fd, 0x41);
@@ -275,7 +276,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				sv.send_packet(game_event, fd, 0x22);
 				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
 				sv.send_packet(set_center_chunk, fd, 0x57);
-				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
+				/*for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
 				{
 					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
 					{
@@ -293,7 +294,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 									minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
 						sv.send_packet(chunk_data, fd, 0x27);
 					}
-				}
+				}*/
 
 				u.state = STATE::PLAY;
 				send_system_chat(std::format("{} connected", u.name), users, sv);
