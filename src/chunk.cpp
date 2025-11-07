@@ -38,7 +38,7 @@ int spline::get_value(double noise_value)
 	return 0;
 }
 
-std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int place_z, int id)
+std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int place_z, block &b)
 {
 	if (place_x >= 16 || place_y >= 320 || place_z >= 16)
 		return std::unexpected(chunk_error::NON_EXISTING_POSITION);
@@ -47,7 +47,7 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	char palette_index = -1;
 	for (int i = 0; i < sec.palette.size(); i++)
 	{
-		if (sec.palette[i] == id)
+		if (sec.palette[i].get().actual_id == b.actual_id)
 		{
 			if (sec.blocks.size() == 1)
 			{
@@ -70,7 +70,7 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 			for (int i = 1; i < 4096; i++)
 				sec.blocks[i] = sec.blocks[0];
 		}
-		sec.palette.push_back(id);
+		sec.palette.push_back(b);
 		palette_index = sec.palette.size() - 1;
 	}
 
@@ -110,20 +110,20 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	return true;
 }
 
-void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, std::map<std::string, block> &blocks, int *spawn_y)
+void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y)
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
 
 	const auto before = clock::now();
 	int y_max = 64;
-	long dirt_id = blocks.find("minecraft:dirt")->second.actual_id;
-	long grass_id = blocks.find("minecraft:grass_block")->second.actual_id;
-	block tall_grass = blocks.find("minecraft:tall_grass")->second;
-	long lower_tall_grass = tall_grass.actual_id;
-	tall_grass.add_propierty("half", json_value("upper"));
-	long higher_tall_grass = tall_grass.actual_id;
-	long water = blocks.find("minecraft:water")->second.actual_id;
+	block &dirt = blocks_.find("minecraft:dirt")->second;
+	block &grass_id = blocks_.find("minecraft:grass_block")->second;
+	block &tall_grass_lower = blocks_.find("minecraft:tall_grass")->second;
+	block tall_grass_upper = blocks_.find("minecraft:tall_grass")->second;
+	tall_grass_upper.add_propierty("half", json_value("upper"));
+	block &water = blocks_.find("minecraft:water")->second;
+	block &short_grass = blocks_.find("minecraft:short_grass")->second;
 
 	for (int z_ = 0; z_ < 16; z_++)
 	{
@@ -157,7 +157,7 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 			for (int y = -64; y < y_max; y++)
 			{
 				if (y < y_max - 1)
-					auto ret = set_block(x_, y, z_, dirt_id);
+					auto ret = set_block(x_, y, z_, dirt);
 				else if (y_max >= 64)
 					auto ret = set_block(x_, y, z_, grass_id);
 				/*if (!ret)
@@ -165,13 +165,13 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 				if (y == y_max - 1 && y_max >= 64)
 				{
 					const double bush_val = bush_noise.noise2D(world_x, world_z);
-					if (bush_val > 0.4f)
+					/*if (bush_val > 0.4f)
 					{
-						auto ret = set_block(x_, y + 1, z_, lower_tall_grass);
-						auto ret2 = set_block(x_, y + 2, z_, higher_tall_grass);
-					}
-					else if (bush_val > 0.0f)
-						auto ret = set_block(x_, y + 1, z_, 2048);
+						auto ret = set_block(x_, y + 1, z_, tall_grass_lower);
+						auto ret2 = set_block(x_, y + 2, z_, tall_grass_upper);
+					}*/
+					if (bush_val > 0.0f)
+						auto ret = set_block(x_, y + 1, z_, short_grass);
 
 					const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
 					if (tree_val > 0.6f)
@@ -189,7 +189,7 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 		}
 	}
 	const ms duration = clock::now() - before;
-	log(std::format("Chunk generation took {}ms", duration), LOG_LEVEL::NORMAL);
+	log(std::format("Chunk generation took {}", duration), LOG_LEVEL::NORMAL);
 }
 
 
@@ -199,7 +199,7 @@ chunk & world::get_chunk(int x, int z)
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, blocks);
+		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise);
 		return chunk;
 	}
 	return ret->second;
@@ -211,7 +211,7 @@ chunk & world::get_chunk(int x, int z, int *spawn_y)
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, blocks, spawn_y);
+		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, spawn_y);
 		return chunk;
 	}
 	return ret->second;
@@ -235,10 +235,10 @@ void world::generate_seeds()
 }
 
 
-std::expected<bool, chunk_error> world::set_block(int x, int y, int z, int id)
+std::expected<bool, chunk_error> world::set_block(int x, int y, int z, block &b)
 {
 	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
-	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), id);
+	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), b);
 	if (!ret)
 	{
 		log("Block placement failed", LOG_LEVEL::ERROR);
@@ -247,11 +247,20 @@ std::expected<bool, chunk_error> world::set_block(int x, int y, int z, int id)
 	return true;
 }
 
+void world::set_blocks(std::map<std::string, block> b)
+{
+	blocks = b;
+	blocks_ = b;
+}
 
 void world::build_trees()
 {
-	long log_id = blocks.find("minecraft:oak_log")->second.actual_id;
-	long leaves_id = blocks.find("minecraft:oak_leaves")->second.actual_id;
+	using clock = std::chrono::system_clock;
+	using ms = std::chrono::duration<double, std::milli>;
+
+	const auto before = clock::now();
+	block &log_id = blocks.find("minecraft:oak_log")->second;
+	block &leaves_id = blocks.find("minecraft:oak_leaves")->second;
 	for (auto &pos: trees_to_build)
 	{
 		set_block(pos.x, pos.y + 1, pos.z, log_id);
@@ -286,4 +295,6 @@ void world::build_trees()
 		set_block(pos.x, pos.y + 6, pos.z - 1, leaves_id);
 	}
 	trees_to_build.clear();
+	const ms duration = clock::now() - before;
+	log(std::format("placing trees took {}", duration), LOG_LEVEL::NORMAL);
 }

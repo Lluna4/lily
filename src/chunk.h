@@ -1,5 +1,6 @@
 #pragma once
 #include <expected>
+#include <functional>
 #include <print>
 #include <vector>
 #include <map>
@@ -12,6 +13,8 @@
 #include "blocks.h"
 
 int rem_euclid(int a, int b);
+
+static std::map<std::string, block> blocks_;
 
 struct dot
 {
@@ -45,7 +48,7 @@ struct coordinates
 
 struct section
 {
-	std::vector<u_int64_t> palette;
+	std::vector<std::reference_wrapper<block>> palette;
 	std::vector<int8_t> blocks;
 	short non_air_blocks;
 };
@@ -64,15 +67,15 @@ struct chunk
 		{
 			section sec;
 			sec.blocks.push_back(0);
-			sec.palette.push_back(0);
+			sec.palette.push_back(blocks_.find("minecraft:air")->second);
 			sec.non_air_blocks = 0;
 			sections.push_back(sec);
 		}
 	}
 	std::vector<section> sections;
 	int x, z;
-	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
-	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, std::map<std::string, block> &blocks, int *spawn_y = nullptr);
+	std::expected<bool, chunk_error> set_block(int x, int y, int z, block &b);
+	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y = nullptr);
 };
 
 struct world
@@ -88,10 +91,12 @@ struct world
 	siv::PerlinNoise bush_noise;
 	siv::PerlinNoise tree_noise;
 	std::map<std::string, block> blocks;
+
+	void set_blocks(std::map<std::string, block> blocks);
 	chunk &get_chunk(int x, int z);
 	chunk &get_chunk(int x, int z, int *spawn_y);
 	void generate_seeds();
-	std::expected<bool, chunk_error> set_block(int x, int y, int z, int id);
+	std::expected<bool, chunk_error> set_block(int x, int y, int z, block &b);
 	void build_trees();
 };
 

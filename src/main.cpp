@@ -87,20 +87,20 @@ void stream_world(user &u, server &sv)
 		if (u.chunk_x < u.prev_chunk_x)
 			chunk_start_x = u.chunk_x - u.view_distance;
 		
-		for (int x = chunk_start_x; x < chunk_start_x + 2; x++)
+		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
 		{
-			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 1; z++)
+			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
 			{
 				chunk &c = w.get_chunk(x, z);
 			}
 		}
 		w.build_trees();
-		for (int x = chunk_start_x; x < chunk_start_x + 2; x++)
+		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
 		{
-			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 1; z++)
+			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
 			{
 				chunk &c = w.get_chunk(x, z);
-				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0),c, minecraft::varint(0),
+				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
 							minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
 							minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
 				sv.send_packet(chunk_data, u.fd, 0x27);
@@ -115,20 +115,20 @@ void stream_world(user &u, server &sv)
 		if (u.chunk_z < u.prev_chunk_z)
 			chunk_start_z = u.chunk_z - u.view_distance;
 		
-		for (int z = chunk_start_z; z < chunk_start_z + 2; z++)
+		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
 		{
-			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 1; x++)
+			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
 			{
 				chunk &c = w.get_chunk(x, z);
 			}
 		}
 		w.build_trees();
-		for (int z = chunk_start_z; z < chunk_start_z + 2; z++)
+		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
 		{
-			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 1; x++)
+			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
 			{
 				chunk &c = w.get_chunk(x, z);
-				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0),c, minecraft::varint(0),
+				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
 							minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
 							minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
 				sv.send_packet(chunk_data, u.fd, 0x27);
@@ -288,7 +288,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
 					{
 						chunk &c = w.get_chunk(x, y);
-						auto chunk_data = std::make_tuple(x, y, minecraft::varint(0),c, minecraft::varint(0),
+						auto chunk_data = std::make_tuple(x, y, minecraft::varint(0), std::ref(c), minecraft::varint(0),
 									minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
 									minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
 						sv.send_packet(chunk_data, fd, 0x27);
@@ -417,7 +417,8 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				int y = pos << 52 >> 52;
 				int z = pos << 26 >> 38;
 				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
-				auto ret = w.set_block(x, y, z, 0);
+				block air = w.blocks.find("minecraft:air")->second;
+				auto ret = w.set_block(x, y, z, air);
 				if (!ret)
 					log("Block placement failed", LOG_LEVEL::ERROR);
 
@@ -536,18 +537,16 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 						}
 					}
 				}
-
-				long id = placed_block.actual_id;
 				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
-				auto ret = w.set_block(x, y, z, id);
+				auto ret = w.set_block(x, y, z, placed_block);
 				if (!ret)
 					log("Block placement failed", LOG_LEVEL::ERROR);
-				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(id));
+				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(placed_block.actual_id));
 				send_render_distance(block_update, 0x08, sv, u.x, u.z);
 				auto awknowledge_block = std::make_tuple(std::get<8>(use_item_on));
 				sv.send_packet(awknowledge_block, fd, 0x04);
 				log(std::format("Block placed is {}", items[u.inventory[u.held_item + 36]]), LOG_LEVEL::NORMAL);
-				log(std::format("Id is {}", id), LOG_LEVEL::NORMAL);
+				log(std::format("Id is {}", placed_block.actual_id), LOG_LEVEL::NORMAL);
 				break;
 			}
 		}
@@ -589,7 +588,7 @@ int main()
 		return -1;
 	}
 	process_item_registry("../generated/reports/registries.json", items);
-	w.blocks = process_block_registry("../generated/reports/blocks.json");
+	w.set_blocks(process_block_registry("../generated/reports/blocks.json"));
 	w.blocks.find("minecraft:water")->second.add_propierty("level", json_value(15));
 	log("Added block registry", LOG_LEVEL::NORMAL);
 	w.generate_seeds();

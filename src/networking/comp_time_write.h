@@ -132,7 +132,7 @@ inline void write_type<minecraft::nameless_string_tag>(buffer<char> *v, minecraf
 }
 
 template <>
-inline void write_type<chunk>(buffer<char> *v, chunk value)
+inline void write_type<chunk &>(buffer<char> *v, chunk &value)
 {
     buffer<char> t;
     for (auto &sec: value.sections)
@@ -144,7 +144,7 @@ inline void write_type<chunk>(buffer<char> *v, chunk value)
             t.data[t.size] = 0;
             t.size++;
             t.allocate(t.size + 5);
-            t.size += minecraft::write_varint(&t.data[t.size], sec.palette[sec.blocks[0]]);
+            t.size += minecraft::write_varint(&t.data[t.size], sec.palette[sec.blocks[0]].get().actual_id);
         }
         else
         {
@@ -155,7 +155,7 @@ inline void write_type<chunk>(buffer<char> *v, chunk value)
             for (auto &p: sec.palette)
             {
                 t.allocate(t.size + 5);
-                t.size += minecraft::write_varint(&t.data[t.size], p);
+                t.size += minecraft::write_varint(&t.data[t.size], p.get().actual_id);
             }
             for (int i = 0; i < 512; i++)
             {
