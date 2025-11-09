@@ -22,6 +22,7 @@ std::vector<int> disconnected;
 int chat_id = 0;
 world w;
 std::map<int, std::string> items;
+std::vector<block> modified_blocks;
 long log_id = 0;
 long leaves_id = 0;
 long grass_id;
@@ -417,8 +418,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				int y = pos << 52 >> 52;
 				int z = pos << 26 >> 38;
 				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
-				block air = w.blocks.find("minecraft:air")->second;
-				auto ret = w.set_block(x, y, z, air);
+				auto ret = w.set_block(x, y, z, w.get_block("minecraft:air", {}));
 				if (!ret)
 					log("Block placement failed", LOG_LEVEL::ERROR);
 
@@ -515,9 +515,8 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				if (colliding)
 					break;
 
-				block placed_block = w.blocks.find(items[u.inventory[u.held_item + 36]])->second;
-				auto props = placed_block.get_available_propierties();
-				
+				auto props = w.get_block_properties(items[u.inventory[u.held_item + 36]]);
+				std::map<std::string, json_value> properties;
 				if (props.type == TYPE_JSON::OBJECT)
 				{
 					for (auto &[property, value]: props.get<json_object>())
@@ -525,28 +524,29 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 						if (property == "axis")
 						{
 							if (face.num == 0 || face.num == 1)
-								placed_block.add_propierty("axis", json_value("y"));
+								properties.insert({"axis", json_value("y")});
 							else if (face.num == 2 || face.num == 3)
-								placed_block.add_propierty("axis", json_value("z"));
+								properties.insert({"axis", json_value("z")});
 							else if (face.num == 4 || face.num == 5)
-								placed_block.add_propierty("axis", json_value("x"));
+								properties.insert({"axis", json_value("x")});
 						}
 						if (property == "waterlogged")
 						{
-							placed_block.add_propierty("waterlogged", json_value(false));
+							properties.insert({"waterlogged", json_value(false)});
 						}
 					}
 				}
 				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
-				auto ret = w.set_block(x, y, z, placed_block);
+				std::uint64_t id = w.get_block(items[u.inventory[u.held_item + 36]], properties);
+				auto ret = w.set_block(x, y, z, w.get_block(items[u.inventory[u.held_item + 36]], properties));
 				if (!ret)
 					log("Block placement failed", LOG_LEVEL::ERROR);
-				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(placed_block.actual_id));
+				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(id));
 				send_render_distance(block_update, 0x08, sv, u.x, u.z);
 				auto awknowledge_block = std::make_tuple(std::get<8>(use_item_on));
 				sv.send_packet(awknowledge_block, fd, 0x04);
 				log(std::format("Block placed is {}", items[u.inventory[u.held_item + 36]]), LOG_LEVEL::NORMAL);
-				log(std::format("Id is {}", placed_block.actual_id), LOG_LEVEL::NORMAL);
+				log(std::format("Id is {}", id), LOG_LEVEL::NORMAL);
 				break;
 			}
 		}
@@ -588,8 +588,7 @@ int main()
 		return -1;
 	}
 	process_item_registry("../generated/reports/registries.json", items);
-	w.set_blocks(process_block_registry("../generated/reports/blocks.json"));
-	w.blocks.find("minecraft:water")->second.add_propierty("level", json_value(15));
+	w.set_blocks(std::move(process_block_registry("../generated/reports/blocks.json")));
 	log("Added block registry", LOG_LEVEL::NORMAL);
 	w.generate_seeds();
 	w.get_chunk(0, 0, &spawn_y);

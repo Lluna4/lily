@@ -1,5 +1,7 @@
 #include "chunk.h"
 #include "json_reader.h"
+#include "log.h"
+#include <cstdint>
 
 spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -0.8f, .start_value = 10, .end_value = 40},
 								   {.start_noise_val = -0.8f, .end_noise_val = -0.5f, .start_value = 40, .end_value = 45},
@@ -38,7 +40,7 @@ int spline::get_value(double noise_value)
 	return 0;
 }
 
-std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int place_z, block &b)
+std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int place_z, std::uint64_t b)
 {
 	if (place_x >= 16 || place_y >= 320 || place_z >= 16)
 		return std::unexpected(chunk_error::NON_EXISTING_POSITION);
@@ -47,7 +49,7 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	char palette_index = -1;
 	for (int i = 0; i < sec.palette.size(); i++)
 	{
-		if (sec.palette[i].get().actual_id == b.actual_id)
+		if (sec.palette[i] == b)
 		{
 			if (sec.blocks.size() == 1)
 			{
@@ -117,13 +119,12 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 
 	const auto before = clock::now();
 	int y_max = 64;
-	block &dirt = blocks_.find("minecraft:dirt")->second;
-	block &grass_id = blocks_.find("minecraft:grass_block")->second;
-	block &tall_grass_lower = blocks_.find("minecraft:tall_grass")->second;
-	block tall_grass_upper = blocks_.find("minecraft:tall_grass")->second;
-	tall_grass_upper.add_propierty("half", json_value("upper"));
-	block &water = blocks_.find("minecraft:water")->second;
-	block &short_grass = blocks_.find("minecraft:short_grass")->second;
+	std::uint64_t dirt = get_block("minecraft:dirt", {});
+	std::uint64_t grass_id = get_block("minecraft:grass_block", {});
+	std::uint64_t tall_grass_lower = get_block("minecraft:tall_grass", {});
+	std::uint64_t tall_grass_upper = get_block("minecraft:tall_grass", {{"half", json_value("upper")}});
+	std::uint64_t water = get_block("minecraft:water", {});
+	std::uint64_t short_grass = get_block("minecraft:short_grass", {});
 
 	for (int z_ = 0; z_ < 16; z_++)
 	{
@@ -165,12 +166,12 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 				if (y == y_max - 1 && y_max >= 64)
 				{
 					const double bush_val = bush_noise.noise2D(world_x, world_z);
-					/*if (bush_val > 0.4f)
+					if (bush_val > 0.41f)
 					{
 						auto ret = set_block(x_, y + 1, z_, tall_grass_lower);
 						auto ret2 = set_block(x_, y + 2, z_, tall_grass_upper);
-					}*/
-					if (bush_val > 0.0f)
+					}
+					else if (bush_val > 0.0f)
 						auto ret = set_block(x_, y + 1, z_, short_grass);
 
 					const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
@@ -235,7 +236,7 @@ void world::generate_seeds()
 }
 
 
-std::expected<bool, chunk_error> world::set_block(int x, int y, int z, block &b)
+std::expected<bool, chunk_error> world::set_block(int x, int y, int z, std::uint64_t b)
 {
 	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
 	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), b);
@@ -249,7 +250,6 @@ std::expected<bool, chunk_error> world::set_block(int x, int y, int z, block &b)
 
 void world::set_blocks(std::map<std::string, block> b)
 {
-	blocks = b;
 	blocks_ = b;
 }
 
@@ -259,8 +259,8 @@ void world::build_trees()
 	using ms = std::chrono::duration<double, std::milli>;
 
 	const auto before = clock::now();
-	block &log_id = blocks.find("minecraft:oak_log")->second;
-	block &leaves_id = blocks.find("minecraft:oak_leaves")->second;
+	std::uint64_t log_id = get_block("minecraft:oak_log", {});
+	std::uint64_t leaves_id = get_block("minecraft:oak_leaves", {});
 	for (auto &pos: trees_to_build)
 	{
 		set_block(pos.x, pos.y + 1, pos.z, log_id);
@@ -297,4 +297,89 @@ void world::build_trees()
 	trees_to_build.clear();
 	const ms duration = clock::now() - before;
 	log(std::format("placing trees took {}", duration), LOG_LEVEL::NORMAL);
+}
+
+json_value world::get_block_properties(std::string block)
+{
+	auto b = blocks_.find(block);
+
+	if (b == blocks_.end())
+		return json_value(false);
+
+	auto &bl = b->second;
+
+	return bl.propierties.get<json_object>()["properties"];
+}
+
+std::uint64_t world::get_block(std::string block, std::map<std::string, json_value> properties)
+{
+	auto b = blocks_.find(block);
+
+	if (b == blocks_.end())
+		return -1;
+
+	auto &bl = b->second;
+
+	json_value ret = bl.propierties.get<json_object>()["states"];
+	std::uint64_t def = 0;
+
+	if (properties.empty())
+	{
+		return bl.actual_id;
+	}
+
+    for (auto &state: ret.get<json_array>())
+    {
+        bool contains_everything = true;
+        for (auto &[prop, value]: properties)
+        {
+            if (state.get<json_object>()["properties"].get<json_object>().contains(prop))
+            {
+                if (state.get<json_object>()["properties"].get<json_object>()[prop].get_type() == value.get_type())
+                {
+                    if (value.get_type() == TYPE_JSON::STRING)
+                    {
+                        if (state.get<json_object>()["properties"].get<json_object>()[prop].get<std::string>() != value.get<std::string>())
+                        {
+                            contains_everything = false;
+                            break;
+                        }
+                    }
+                    else if (value.type == TYPE_JSON::BOOL)
+                    {
+                        if (state.get<json_object>()["properties"].get<json_object>()[prop].get<bool>() != value.get<bool>())
+                        {
+                            contains_everything = false;
+                            break;
+                        }
+                    }
+                    else if (value.type == TYPE_JSON::NUMBER)
+                    {
+                        if (state.get<json_object>()["properties"].get<json_object>()[prop].get<long>() != value.get<long>())
+                        {
+                            contains_everything = false;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    contains_everything = false;
+                    break;
+                }
+            }
+            else
+            {
+                contains_everything = false;
+                break;
+            }
+        }
+
+        if (contains_everything)
+        {
+            return state.get<json_object>()["id"].get<long>();
+            break;
+        }
+    }
+	return def;
 }
