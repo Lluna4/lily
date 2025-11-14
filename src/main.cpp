@@ -240,6 +240,12 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 											(std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
 											(char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
 											false);
+				auto commands = std::make_tuple(minecraft::varint(3),
+								(char)0x00, minecraft::varint(2), minecraft::varint(1), minecraft::varint(2),
+								(char)0x01, minecraft::varint(1), minecraft::varint(2), std::string("pronouns"),
+								(char)0x02, minecraft::varint(0), std::string("pronouns"), minecraft::varint(5), minecraft::varint(2),
+								minecraft::varint(0));
+				sv.send_packet(commands, fd, 0x10);
 				u.y = spawn_y;
 				sv.send_packet(login, fd, 0x2B);
 				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
@@ -311,6 +317,19 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				log("teleport confirm", LOG_LEVEL::NORMAL);
 				std::tuple<minecraft::varint> confirm_teleport;
 				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
+				break;
+			}
+			case 0x06:
+			{
+				std::tuple<minecraft::string> command;
+				command = netlib::read_packet(std::move(command), packet);
+				std::string comm(std::get<0>(command).data.data);
+
+				if (comm.starts_with("pronouns"))
+				{
+					std::string pronouns = comm.substr(comm.find(' ') + 1);
+					u.pronouns = pronouns;
+				}
 				break;
 			}
 			case 0x08:

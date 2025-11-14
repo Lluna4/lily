@@ -146,6 +146,7 @@ struct chunk
 	}
 	std::vector<section> sections;
 	int x, z;
+	std::uint64_t get_block_id(int place_x, int place_y, int place_z);
 	std::expected<bool, chunk_error> set_block(int place_x, int place_y, int place_z, std::uint64_t b);
 	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y = nullptr);
 };
@@ -171,5 +172,7 @@ struct world
 	void build_trees();
 	json_value get_block_properties(std::string block);
 	std::uint64_t get_block(std::string block, std::map<std::string, json_value> properties);
+	std::uint64_t get_block(int x, int y, int z);
+	bool is_id_block(std::uint64_t id, std::vector<std::string>);
 };
 

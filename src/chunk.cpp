@@ -40,6 +40,20 @@ int spline::get_value(double noise_value)
 	return 0;
 }
 
+std::uint64_t chunk::get_block_id(int place_x, int place_y, int place_z)
+{
+	if (place_x >= 16 || place_y >= 320 || place_z >= 16)
+		return -1;
+	int section_index = (place_y + 64)/16;
+	section &sec = sections[section_index];
+	std::int8_t index = -1;
+	if (sec.blocks.size() == 1)
+		index = sec.blocks[0];
+	else
+		index = sec.blocks[(rem_euclid(place_y, 16) * 256) + (place_z * 16) + place_x];
+	return sec.palette[index];
+}
+
 std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int place_z, std::uint64_t b)
 {
 	if (place_x >= 16 || place_y >= 320 || place_z >= 16)
@@ -382,4 +396,31 @@ std::uint64_t world::get_block(std::string block, std::map<std::string, json_val
         }
     }
 	return def;
+}
+
+std::uint64_t world::get_block(int x, int y, int z)
+{
+	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
+	return c.get_block_id(rem_euclid(x, 16), y, rem_euclid(z, 16));
+}
+
+bool world::is_id_block(std::uint64_t id, std::vector<std::string> blocks)
+{
+
+	for (auto &block: blocks)
+	{
+		auto b = blocks_.find(block);
+
+		if (b == blocks_.end())
+			return -1;
+
+		auto &bl = b->second;
+		json_value ret = bl.propierties.get<json_object>()["states"];
+		for (auto &state: ret.get<json_array>())
+		{
+			if (state.get<json_object>()["id"].get<long>() == id)
+				return true;
+		}
+	}
+	return false;
 }
