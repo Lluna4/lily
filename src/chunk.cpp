@@ -291,10 +291,6 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 	vk::CommandBuffer command_buffer = command_buffers.front();
 	vk::Fence fence = device.createFence(vk::FenceCreateInfo());
 	vk::Queue queue = device.getQueue(queue_family_index, 0);
-	vk::MemoryBarrier memory_barrier(
-		vk::AccessFlagBits::eShaderWrite,
-		vk::AccessFlagBits::eShaderRead
-	);
 	vk::CommandBufferBeginInfo command_buffer_begin_info(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 	command_buffer.begin(command_buffer_begin_info);
 	command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
@@ -335,14 +331,6 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 
 			command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
 			command_buffer.dispatch(y_max + 1 + 64, 1, 1);
-			command_buffer.pipelineBarrier(
-				vk::PipelineStageFlagBits::eComputeShader,
-				vk::PipelineStageFlagBits::eComputeShader,
-				vk::DependencyFlags(),
-				{memory_barrier},
-				{},
-				{}
-			);
 		}
 	}
 	command_buffer.end();
