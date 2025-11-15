@@ -7,6 +7,7 @@
 #include <map>
 #include <cmath>
 #include <random>
+#include <vulkan/vulkan.hpp>
 #include "json_reader.h"
 #include "user.h"
 #include "PerlinNoise.hpp"
@@ -16,6 +17,13 @@
 int rem_euclid(int a, int b);
 
 static std::map<std::string, block> blocks_;
+
+struct parameters
+{
+	int y_max;
+	int x;
+	int z;
+};
 
 static std::uint64_t get_block(std::string block, std::map<std::string, json_value> properties)
 {
@@ -138,8 +146,11 @@ struct chunk
 		for (int i = 0; i < 24; i++)
 		{
 			section sec;
-			sec.blocks.push_back(0);
+			sec.blocks.resize(4096);
+			for (int x = 1; x < 4096; x++)
+				sec.blocks[x] = sec.blocks[0];
 			sec.palette.push_back(get_block("minecraft:air", {}));
+			sec.palette.push_back(get_block("minecraft:grass_block", {}));
 			sec.non_air_blocks = 0;
 			sections.push_back(sec);
 		}
@@ -148,7 +159,7 @@ struct chunk
 	int x, z;
 	std::uint64_t get_block_id(int place_x, int place_y, int place_z);
 	std::expected<bool, chunk_error> set_block(int place_x, int place_y, int place_z, std::uint64_t b);
-	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y = nullptr);
+	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, vk::Device &device, int queue_family_index,vk::PhysicalDevice &physical_device, vk::ShaderModule &shader_module, int *spawn_y = nullptr);
 };
 
 struct world
@@ -163,6 +174,10 @@ struct world
 	siv::PerlinNoise main_noise;
 	siv::PerlinNoise bush_noise;
 	siv::PerlinNoise tree_noise;
+	vk::Device device;
+	vk::PhysicalDevice physical_device;
+	vk::ShaderModule shader_module;
+	int queue_family_index;
 
 	void set_blocks(std::map<std::string, block> blocks);
 	chunk &get_chunk(int x, int z);
