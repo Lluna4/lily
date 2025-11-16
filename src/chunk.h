@@ -7,23 +7,17 @@
 #include <map>
 #include <cmath>
 #include <random>
-#include <vulkan/vulkan.hpp>
 #include "json_reader.h"
 #include "user.h"
 #include "PerlinNoise.hpp"
 #include "log.h"
 #include "blocks.h"
+#include "chunkgen.h"
 
 int rem_euclid(int a, int b);
 
 static std::map<std::string, block> blocks_;
 
-struct parameters
-{
-	int y_max;
-	int x;
-	int z;
-};
 
 static std::uint64_t get_block(std::string block, std::map<std::string, json_value> properties)
 {
@@ -96,21 +90,6 @@ static std::uint64_t get_block(std::string block, std::map<std::string, json_val
 }
 
 
-struct dot
-{
-	double start_noise_val; double end_noise_val;
-	int start_value; int end_value;
-
-	int get_height(double noise_value);
-};
-
-struct spline
-{
-	std::vector<dot> dots;
-
-	int get_value(double noise_value);
-};
-
 struct coordinates
 {
 	coordinates(int x_, int y_)
@@ -159,25 +138,13 @@ struct chunk
 	int x, z;
 	std::uint64_t get_block_id(int place_x, int place_y, int place_z);
 	std::expected<bool, chunk_error> set_block(int place_x, int place_y, int place_z, std::uint64_t b);
-	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, vk::Device &device, int queue_family_index,vk::PhysicalDevice &physical_device, vk::ShaderModule &shader_module, int *spawn_y = nullptr);
+	void generate(std::vector<position_int> &trees, chunk_generator &chunkgen, int *spawn_y = nullptr);
 };
 
 struct world
 {
 	std::map<std::pair<int, int>, chunk> chunks;
 	std::vector<position_int> trees_to_build;
-	siv::PerlinNoise::seed_type continentality_seed;
-	siv::PerlinNoise::seed_type erosion_seed;
-	siv::PerlinNoise::seed_type bush_seed;
-	siv::PerlinNoise::seed_type tree_seed;
-	siv::PerlinNoise continentality_noise;
-	siv::PerlinNoise main_noise;
-	siv::PerlinNoise bush_noise;
-	siv::PerlinNoise tree_noise;
-	vk::Device device;
-	vk::PhysicalDevice physical_device;
-	vk::ShaderModule shader_module;
-	int queue_family_index;
 
 	void set_blocks(std::map<std::string, block> blocks);
 	chunk &get_chunk(int x, int z);
@@ -189,5 +156,6 @@ struct world
 	std::uint64_t get_block(std::string block, std::map<std::string, json_value> properties);
 	std::uint64_t get_block(int x, int y, int z);
 	bool is_id_block(std::uint64_t id, std::vector<std::string>);
+	chunk_generator chunkgen;
 };
 
