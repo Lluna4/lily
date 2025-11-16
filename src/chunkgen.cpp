@@ -144,16 +144,7 @@ int8_t *chunk_generator::generate(int x, int z, int *spawn_y)
 	size_t size = 4096 * 24;
 	int y_max = 64;
 
-	vk::CommandPoolCreateInfo command_pool_info(vk::CommandPoolCreateFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer), queue_family_index);
-	vk::CommandPool command_pool = device.createCommandPool(command_pool_info);
-
-	vk::CommandBufferAllocateInfo command_buffer_alloc_info(command_pool, vk::CommandBufferLevel::ePrimary, 1);
-	std::vector<vk::CommandBuffer> command_buffers = device.allocateCommandBuffers(command_buffer_alloc_info);
-
-	vk::CommandBuffer command_buffer = command_buffers.front();
-	vk::Fence fence = device.createFence(vk::FenceCreateInfo());
-	vk::Queue queue = device.getQueue(queue_family_index, 0);
-	vk::CommandBufferBeginInfo command_buffer_begin_info(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+	vk::CommandBufferBeginInfo command_buffer_begin_info{vk::CommandBufferUsageFlags()};
 	command_buffer.begin(command_buffer_begin_info);
 	command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
 	command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
@@ -199,12 +190,11 @@ int8_t *chunk_generator::generate(int x, int z, int *spawn_y)
 	vk::SubmitInfo submit_info(0, nullptr, nullptr, 1, &command_buffer);
 	queue.submit({submit_info}, fence);
 	auto res = device.waitForFences({fence}, true, -1);
+	device.resetFences(fence);
 	int8_t *out_data = (int8_t *)device.mapMemory(buffer_out_memory, 0, size);
 	int8_t *ret_data = (int8_t *)memdup(out_data, size);
 	memset(out_data, 0, size);
 	device.unmapMemory(buffer_out_memory);
-	device.destroyFence(fence);
-	device.destroyCommandPool(command_pool);
 	const ms duration = clock::now() - before;
 	log(std::format("Chunk generation took {}", duration), LOG_LEVEL::NORMAL);
 	return ret_data;
@@ -237,11 +227,11 @@ void chunk_generator::init()
 	#endif
 	#ifdef __APPLE__
 	std::vector<const char *> extensions = {"VK_KHR_portability_enumeration", VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+	vk::InstanceCreateInfo instance_info(vk::InstanceCreateFlags(VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR), &app_info, layers.size(), layers.data(), extensions.size(), extensions.data());
 	#else
 	std::vector<const char *> extensions = {};
+	vk::InstanceCreateInfo instance_info(vk::InstanceCreateFlags(), &app_info, layers.size(), layers.data(), extensions.size(), extensions.data());
 	#endif
-	vk::InstanceCreateInfo instance_info(vk::InstanceCreateFlags(VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR), &app_info, layers.size(), layers.data(), extensions.size(), extensions.data());
-
 	vk::Instance instance = vk::createInstance(instance_info);
 
 	physical_device = get_physical_device(instance);
@@ -318,4 +308,14 @@ void chunk_generator::init()
 		{descriptor_sets[0], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &buffer_out_info}
 	};
 	device.updateDescriptorSets(write_descriptor_sets, {});
+
+	vk::CommandPoolCreateInfo command_pool_info(vk::CommandPoolCreateFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer), queue_family_index);
+	vk::CommandPool command_pool = device.createCommandPool(command_pool_info);
+
+	vk::CommandBufferAllocateInfo command_buffer_alloc_info(command_pool, vk::CommandBufferLevel::ePrimary, 1);
+	command_buffers = device.allocateCommandBuffers(command_buffer_alloc_info);
+
+	command_buffer = command_buffers.front();
+	fence = device.createFence(vk::FenceCreateInfo());
+	queue = device.getQueue(queue_family_index, 0);
 }

@@ -49,6 +49,10 @@ struct chunk_generator
 	vk::DeviceMemory buffer_out_memory;
 	vk::Buffer buffer_out;
 	vk::PipelineLayout pipeline_layout;
+	std::vector<vk::CommandBuffer> command_buffers;
+	vk::CommandBuffer command_buffer;
+	vk::Fence fence;
+	vk::Queue queue;
 	int queue_family_index;
     int8_t *generate(int x, int z, int *spawn_y = nullptr);
 	void init();
