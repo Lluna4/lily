@@ -58,6 +58,7 @@ struct chunk
 				sec.blocks[x] = sec.blocks[0];
 			sec.palette.push_back(0);
 			sec.palette.push_back(9);
+			sec.palette.push_back(86);
 			sec.non_air_blocks = 4096;
 			sections.push_back(sec);
 		}

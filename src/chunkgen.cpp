@@ -1,6 +1,8 @@
 #include "chunkgen.h"
 #include "chunk.h"
+#include "log.h"
 #include <cstddef>
+#include <cstdlib>
 spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -0.8f, .start_value = 10, .end_value = 40},
 								   {.start_noise_val = -0.8f, .end_noise_val = -0.5f, .start_value = 40, .end_value = 45},
 								   {.start_noise_val = -0.5f, .end_noise_val = -0.3f, .start_value = 45, .end_value = 64},
@@ -109,7 +111,7 @@ std::expected<std::pair<vk::DeviceMemory, vk::Buffer>, Error> create_buffer(cons
     int propierty_index = -1;
     for (int i = 0; i < memory_properties.memoryTypeCount; i++)
     {
-        if (memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlags(vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostCached))
+        if (memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlags(vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCached))
         {
             propierty_index = i;
             break;
@@ -415,16 +417,18 @@ std::vector<chunk> chunk_generator::generate_mult(std::vector<position_int> posi
 	queue.submit({submit_info}, fence);
 	auto res = device.waitForFences({fence}, true, -1);
 	device.resetFences(fence);
-	int8_t *data = (int8_t *)device.mapMemory(buffer_out_memory, 0, size);
+	int8_t *data2 = (int8_t *)device.mapMemory(buffer_out_memory, 0, size);
 	std::vector<chunk> ret;
+	const auto before2 = clock::now();
+	int8_t *data = (int8_t *)malloc(size);
+	std::memcpy(data, data2, size);
+	const ms duration2 = clock::now() - before2;
+	log(std::format("Downloading took {}", duration2), LOG_LEVEL::NORMAL);
 	for (int i = 0; i < positions.size(); i++)
 	{
 		chunk &c = ret.emplace_back(positions[i].x, positions[i].z);
 		for (int x = 0; x < c.sections.size(); x++)
 		{
-			c.sections[x].palette[0] = 0;
-			c.sections[x].palette[1] = 9;
-			c.sections[x].palette.push_back(blocks.find("minecraft:water")->second.actual_id);
 			int index = x * 4096 + (i * 98304);
 			std::memcpy(c.sections[x].blocks.data(), &data[index], 4096);
 		}
