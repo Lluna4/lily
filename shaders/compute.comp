@@ -18,7 +18,7 @@ layout(std430, binding = 0) buffer lay1 { int8_t dest[]; };
 void main()
 {
     const uint y = gl_GlobalInvocationID.x;
-    if (p.y_max < 64 && y > p.y_max)
+    if (p.y_max < 64 && y > p.y_max + 64)
         dest[((y * 256) + (p.z * 16) + p.x) + (p.chunk * 98304)] = int8_t(2);
     else
         dest[((y * 256) + (p.z * 16) + p.x) + (p.chunk * 98304)] = int8_t(1);

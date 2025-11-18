@@ -1,6 +1,7 @@
 #include "chunkgen.h"
 #include "chunk.h"
 #include "log.h"
+#include "vulkan/vulkan.hpp"
 #include <cstddef>
 #include <cstdlib>
 spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -0.8f, .start_value = 10, .end_value = 40},
@@ -111,7 +112,9 @@ std::expected<std::pair<vk::DeviceMemory, vk::Buffer>, Error> create_buffer(cons
     int propierty_index = -1;
     for (int i = 0; i < memory_properties.memoryTypeCount; i++)
     {
-        if (memory_properties.memoryTypes[i].propertyFlags & vk::MemoryPropertyFlags(vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCached))
+		vk::MemoryPropertyFlags required_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCached;
+
+       	if ((memory_properties.memoryTypes[i].propertyFlags & required_flags) == required_flags)
         {
             propierty_index = i;
             break;
@@ -403,7 +406,8 @@ std::vector<chunk> chunk_generator::generate_mult(std::vector<position_int> posi
 				params.y_max = y_max;
 				params.x = x_;
 				params.z = z_;
-
+				if (world_x == 0 && world_z == 0 && spawn_y != nullptr)
+					*spawn_y = y_max;
 				if (y_max < 64)
 					y_max = 64;
 
@@ -433,6 +437,7 @@ std::vector<chunk> chunk_generator::generate_mult(std::vector<position_int> posi
 			std::memcpy(c.sections[x].blocks.data(), &data[index], 4096);
 		}
 	}
+	free(data);
 	device.unmapMemory(buffer_out_memory);
 	device.destroyFence(fence);
 	device.destroyCommandPool(command_pool);
