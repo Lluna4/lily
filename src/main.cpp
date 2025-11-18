@@ -16,6 +16,7 @@
 #include "log.h"
 #include "chunk.h"
 #include "blocks.h"
+#include "world.h"
 
 std::map<int, user> users;
 std::vector<int> disconnected;
@@ -87,16 +88,17 @@ void stream_world(user &u, server &sv)
 
 		if (u.chunk_x < u.prev_chunk_x)
 			chunk_start_x = u.chunk_x - u.view_distance;
-		
-		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
+		std::vector<position_int> chunks;
+		for (int x = chunk_start_x; x < chunk_start_x + 2; x++)
 		{
 			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
 			{
-				chunk &c = w.get_chunk(x, z);
+				chunks.push_back({x, 0, z});
 			}
 		}
+		w.generate(chunks);
 		w.build_trees();
-		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
+		for (int x = chunk_start_x; x < chunk_start_x + 2; x++)
 		{
 			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
 			{
@@ -116,15 +118,17 @@ void stream_world(user &u, server &sv)
 		if (u.chunk_z < u.prev_chunk_z)
 			chunk_start_z = u.chunk_z - u.view_distance;
 		
-		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
+		std::vector<position_int> chunks;
+		for (int z = chunk_start_z; z < chunk_start_z + 2; z++)
 		{
 			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
 			{
-				chunk &c = w.get_chunk(x, z);
+				chunks.push_back({x, 0, z});
 			}
 		}
+		w.generate(chunks);
 		w.build_trees();
-		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
+		for (int z = chunk_start_z; z < chunk_start_z + 2; z++)
 		{
 			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
 			{
@@ -282,13 +286,15 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				sv.send_packet(game_event, fd, 0x22);
 				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
 				sv.send_packet(set_center_chunk, fd, 0x57);
+				std::vector<position_int> chunks;
 				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
 				{
 					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
 					{
-						chunk &c = w.get_chunk(x, y);
+						chunks.push_back({x, 0, y});
 					}
 				}
+				w.generate(chunks);
 				w.build_trees();
 				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
 				{
@@ -610,7 +616,10 @@ int main()
 	w.set_blocks(std::move(process_block_registry("../generated/reports/blocks.json")));
 	log("Added block registry", LOG_LEVEL::NORMAL);
 	w.generate_seeds();
-	w.get_chunk(0, 0, &spawn_y);
+	const auto before = clock::now();
+	w.generate({{0, 0, 0}}, &spawn_y);
+	const ms duration = clock::now() - before;
+	log(std::format("Took {}ms", duration.count()), LOG_LEVEL::NORMAL);
 	while (true)
 	{
 		const auto before = clock::now();

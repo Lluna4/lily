@@ -6,12 +6,14 @@
 #include <expected>
 #include "log.h"
 #include "user.h"
+#include "chunk.h"
 
 struct parameters
 {
 	int y_max;
 	int x;
 	int z;
+	int chunk;
 };
 
 struct dot
@@ -44,16 +46,9 @@ struct chunk_generator
 	vk::Device device;
 	vk::PhysicalDevice physical_device;
 	vk::ShaderModule shader_module;
-    std::vector<vk::DescriptorSet> descriptor_sets;
-    vk::Pipeline pipeline;
-	vk::DeviceMemory buffer_out_memory;
-	vk::Buffer buffer_out;
-	vk::PipelineLayout pipeline_layout;
-	std::vector<vk::CommandBuffer> command_buffers;
-	vk::CommandBuffer command_buffer;
-	vk::Fence fence;
-	vk::Queue queue;
+	std::map<std::string, block> blocks;
+	parameters params;
 	int queue_family_index;
-    int8_t *generate(int x, int z, int *spawn_y = nullptr);
+	std::vector<chunk> generate_mult(std::vector<position_int> positions, int *spawn_y = nullptr);
 	void init();
 };

@@ -21,6 +21,7 @@ add_executable(lily src/main.cpp
         src/log.cpp
         src/blocks.cpp
         src/chunkgen.cpp
+        src/world.cpp
 )
 
 target_link_libraries(lily PRIVATE OpenSSL::Crypto Threads::Threads Vulkan::Vulkan)
