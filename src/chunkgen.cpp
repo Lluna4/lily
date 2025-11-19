@@ -385,36 +385,12 @@ std::vector<chunk> chunk_generator::generate_mult(std::vector<position_int> posi
 	command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
 	for (int c = 0; c < positions.size(); c++)
 	{
+		params.x = positions[c].x;
+		params.z = positions[c].z;
 		params.chunk = c;
-		for (int z_ = 0; z_ < 16; z_++)
-		{
-			for (int x_ = 0; x_ < 16; x_++)
-			{
-				int world_x = 0;
-				int world_z = 0;
 
-				world_x = positions[c].x * 16 + x_;
-				world_z = positions[c].z * 16 + z_;
-
-				const double value = continentality_noise.octave2D_11(world_x * 0.003221649073064327, world_z * 0.00322164907306432, 6);
-
-				y_max = continentalness.get_value(value);
-				const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
-				/*if (tree_val > 0.6f && y_max >= 64)
-					trees_to_build.emplace_back(world_x, y_max - 1, world_z);*/
-
-				params.y_max = y_max;
-				params.x = x_;
-				params.z = z_;
-				if (world_x == 0 && world_z == 0 && spawn_y != nullptr)
-					*spawn_y = y_max;
-				if (y_max < 64)
-					y_max = 64;
-
-				command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
-				command_buffer.dispatch(y_max + 64, 1, 1);
-			}
-		}
+		command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
+		command_buffer.dispatch(16, 16, 1);
 	}
 	command_buffer.end();
 	vk::SubmitInfo submit_info(0, nullptr, nullptr, 1, &command_buffer);
@@ -435,6 +411,32 @@ std::vector<chunk> chunk_generator::generate_mult(std::vector<position_int> posi
 		{
 			int index = x * 4096 + (i * 98304);
 			std::memcpy(c.sections[x].blocks.data(), &data[index], 4096);
+			bool equal = false;
+			long equal_id = 0;
+			for (long id_ = 0; id_ < c.sections[x].palette.size(); id_++)
+			{
+				bool eq = true;
+				for (auto &block: c.sections[x].blocks)
+				{
+					if (block != id_)
+					{
+						eq = false;
+						break;
+					}
+				}
+				if (eq == true)
+				{
+					equal_id = id_;
+					equal = true;
+					break;
+				}
+			}
+			if (equal == true)
+			{
+				c.sections[x].blocks.clear();
+				c.sections[x].blocks.shrink_to_fit();
+				c.sections[x].blocks.push_back(equal_id);
+			}
 		}
 	}
 	free(data);

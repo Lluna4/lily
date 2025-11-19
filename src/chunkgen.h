@@ -10,7 +10,6 @@
 
 struct parameters
 {
-	int y_max;
 	int x;
 	int z;
 	int chunk;

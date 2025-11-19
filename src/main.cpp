@@ -241,7 +241,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 				auto login = std::make_tuple(fd, false,minecraft::varint(1) ,(std::string)"minecraft:overworld",
 											minecraft::varint(20), minecraft::varint(u.view_distance),
 											minecraft::varint(12), false, false, false, minecraft::varint(0),
-											(std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
+											(std::string)"minecraft:overworld", (long)128612, (unsigned char)3,
 											(char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
 											false);
 				auto commands = std::make_tuple(minecraft::varint(3),

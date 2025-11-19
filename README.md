@@ -26,3 +26,5 @@ note that the server does require data from the vanilla server to function, you 
 
 
 Uses a [perlin noise library](https://github.com/Reputeless/PerlinNoise) from [Reputless](https://github.com/Reputeless)
+
+Uses a [glsl noise function](https://thebookofshaders.com/13/) from Author @patriciogv 2015 http://patriciogonzalezvivo.com

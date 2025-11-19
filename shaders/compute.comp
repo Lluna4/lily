@@ -3,11 +3,10 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_shader_8bit_storage : require
 
-layout(local_size_x = 1, local_size_y = 1) in;
+layout(local_size_x = 16, local_size_y = 16) in;
 
 layout( push_constant ) uniform constants
 {
-    int y_max;
     int x;
     int z;
     int chunk;
@@ -15,11 +14,93 @@ layout( push_constant ) uniform constants
 
 layout(std430, binding = 0) buffer lay1 { int8_t dest[]; };
 
+float random (in vec2 st) {
+    return fract(sin(dot(st.xy,
+                         vec2(12.9898,78.233)))*
+        43758.5453123);
+}
+
+// Based on Morgan McGuire @morgan3d
+// https://www.shadertoy.com/view/4dS3Wd
+float noise (in vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+
+    // Four corners in 2D of a tile
+    float a = random(i);
+    float b = random(i + vec2(1.0, 0.0));
+    float c = random(i + vec2(0.0, 1.0));
+    float d = random(i + vec2(1.0, 1.0));
+
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    return mix(a, b, u.x) +
+            (c - a)* u.y * (1.0 - u.x) +
+            (d - b) * u.x * u.y;
+}
+
+#define OCTAVES 6
+float fbm (in vec2 st) {
+    // Initial values
+    float value = 0.0;
+    float amplitude = .5;
+    float frequency = 0.;
+    //
+    // Loop of octaves
+    for (int i = 0; i < OCTAVES; i++) {
+        value += amplitude * noise(st);
+        st *= 2.;
+        amplitude *= .5;
+    }
+    return value;
+}
+
+float map(float value, float inMin, float inMax, float outMin, float outMax) {
+    return outMin + (value - inMin) * (outMax - outMin) / (inMax - inMin);
+}
+
+float getContinentalness(float noise) {
+    if (noise < 0.1) { 
+        return map(noise, 0.0, 0.1, 10.0, 40.0);
+    } 
+    else if (noise < 0.25) {
+        return map(noise, 0.1, 0.25, 40.0, 45.0);
+    } 
+    else if (noise < 0.35) {
+        return map(noise, 0.25, 0.35, 45.0, 64.0);
+    } 
+    else if (noise < 0.6) {
+        return map(noise, 0.35, 0.6, 64.0, 90.0);
+    } 
+    else if (noise < 0.7) {
+        return map(noise, 0.6, 0.7, 90.0, 120.0);
+    } 
+    else if (noise < 0.9) {
+        return map(noise, 0.7, 0.9, 120.0, 170.0);
+    } 
+    else {
+        return map(noise, 0.9, 1.0, 170.0, 250.0);
+    }
+}
+
 void main()
 {
-    const uint y = gl_GlobalInvocationID.x;
-    if (p.y_max < 64 && y > p.y_max + 64)
-        dest[((y * 256) + (p.z * 16) + p.x) + (p.chunk * 98304)] = int8_t(2);
-    else
-        dest[((y * 256) + (p.z * 16) + p.x) + (p.chunk * 98304)] = int8_t(1);
+    const int x = p.x * 16 + int(gl_LocalInvocationID.x);
+    const int z = p.z * 16 + int(gl_LocalInvocationID.y);
+
+    float val = fbm(vec2(x * 0.003221649073064327, z * 0.00322164907306432));
+    int y_max = int(getContinentalness(val)) + 64;
+
+    for (int y = 0; y < y_max; y++)
+    {
+
+        dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(1);
+    }
+    if (y_max < 128)
+    {
+        for (int y = y_max - 1; y < 128; y++)
+        {
+            dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(2);
+        }
+    }
 }
