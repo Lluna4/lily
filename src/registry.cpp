@@ -77,3 +77,52 @@ int send_registry(int fd, server &sv)
 	}
 	return a;
 }
+
+int get_registry(std::vector<std::string> &biomes)
+{
+	int a = 0;
+	bool stop_a = false;
+	for (const auto & entry : std::filesystem::directory_iterator("../generated/data/minecraft"))
+	{
+		if (entry.path().filename().string().starts_with("."))
+			continue;
+		if (entry.path().filename().string().starts_with("enchantment"))
+			continue;
+		if (entry.path().filename().string().starts_with("datapacks"))
+			continue;
+		if (entry.path().filename().string().starts_with("dialog"))
+			continue;
+		for (const auto & ent : std::filesystem::directory_iterator(entry.path()))
+		{
+			if (ent.is_directory())
+			{
+				for (const auto & e : std::filesystem::directory_iterator(ent.path()))
+				{
+					if (!e.is_regular_file() || e.path().filename().string().starts_with("."))
+						continue;
+					
+					if (ent.path().stem().string() == "biome")
+						biomes.push_back(e.path().filename().stem().string());
+				}
+				continue;
+			}
+			if (!ent.is_regular_file() || ent.path().filename().string().starts_with("."))
+				continue;
+			if (ent.path().stem() == "chat")
+			{
+				log(std::format("Chat sent at num {}", a), LOG_LEVEL::NORMAL);
+				stop_a = true;
+			}
+			if (entry.path().stem().string() == "chat_type")
+			{
+				log(std::format("{}", ent.path().stem().string()), LOG_LEVEL::NORMAL);
+			}
+			if (entry.path().stem().string() == "chat_type" && stop_a == false)
+			{
+				a++;
+			}
+			//std::println("Sending file {}", ent.path().filename().string());
+		}
+	}
+	return a;
+}

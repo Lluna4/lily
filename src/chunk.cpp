@@ -10,7 +10,7 @@ spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -
 								   {.start_noise_val = 0.5f, .end_noise_val = 0.7f, .start_value = 90, .end_value = 120},
 								   {.start_noise_val = 0.7f, .end_noise_val = 0.9f, .start_value = 120, .end_value = 170},
 								   {.start_noise_val = 0.9f, .end_noise_val = 1.01f, .start_value = 170, .end_value = 250}}};
-
+							   
 int rem_euclid(int a, int b)
 {
 	int ret = a %b;
@@ -126,7 +126,7 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	return true;
 }
 
-void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y)
+void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, std::vector<std::string> &biomes, int *spawn_y)
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
@@ -139,6 +139,34 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 	std::uint64_t tall_grass_upper = get_block("minecraft:tall_grass", {{"half", json_value("upper")}});
 	std::uint64_t water = get_block("minecraft:water", {});
 	std::uint64_t short_grass = get_block("minecraft:short_grass", {});
+	std::uint64_t sand = get_block("minecraft:sand", {});
+	std::uint64_t snow = get_block("minecraft:snow", {});
+	std::uint64_t ice = get_block("minecraft:ice", {});
+	std::uint64_t grass_block_snowy = get_block("minecraft:grass_block", {{"snowy", json_value("true")}});
+
+	for (auto &sec: sections)
+	{
+		sec.biome_palette[0] = std::distance(biomes.begin(), std::find(biomes.begin(), biomes.end(), "plains"));
+		sec.biome_palette.push_back(std::distance(biomes.begin(), std::find(biomes.begin(), biomes.end(), "snowy_plains")));
+	}
+
+	for (int i = 0; i < 4; i++)
+	{
+		for (int xx = 0; xx < 4; xx++)
+		{
+			int world_x = x * 16 + (xx * 4);
+			int world_z = z * 16 + (i * 4);
+			const double temp = temperature.octave2D_11(world_x * 0.0003221649073064327, world_z * 0.00322164907306432, 2);
+			for (int y = 0; y < 96; y++)
+			{
+				int section_index = ((y * 4))/16;
+				if (temp < 0.0f)
+					sections[section_index].biome[(rem_euclid(y, 4) * 16) + (i * 4) + xx] = 1;
+				else
+					sections[section_index].biome[(rem_euclid(y, 4) * 16) + (i * 4) + xx] = 0;
+			}
+		}
+	}
 
 	for (int z_ = 0; z_ < 16; z_++)
 	{
@@ -152,53 +180,87 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 
 			y_max = continentalness.get_value(value);
 			
-			
-			/*double bias = 0.0f;
+			const double temp = temperature.octave2D_11(world_x * 0.0003221649073064327, world_z * 0.00322164907306432, 2);
 
-			if (y_max_max > 64)
-				bias += y_max_max * 0.00284810126;
-			for (int y = y_max_max; y > -64; y--)
-			{
-				const double value = main_noise.octave3D(world_x * 0.005221649073064327, y * 0.0026108245365321636 ,world_z * 0.005221649073064327, 16);
-				if (value > (0.0f + bias))
-				{
-					y_max = y;
-					break;
-				}
-				bias-= 0.00284810126;
-			}*/
 			if (world_x == 0 && world_z == 0)
 				*spawn_y = y_max;
-			for (int y = -64; y < y_max; y++)
+			
+			if (temp < 0)
 			{
-				if (y < y_max - 1)
-					auto ret = set_block(x_, y, z_, dirt);
-				else if (y_max >= 64)
-					auto ret = set_block(x_, y, z_, grass_id);
-				/*if (!ret)
-					log("Set block failed!", LOG_LEVEL::ERROR);*/
-				if (y == y_max - 1 && y_max >= 64)
+				for (int y = -64; y < y_max; y++)
 				{
-					const double bush_val = bush_noise.noise2D(world_x, world_z);
-					if (bush_val > 0.41f)
+					if (y < y_max - 1)
+						auto ret = set_block(x_, y, z_, dirt);
+					else if (y_max >= 64)
 					{
-						auto ret = set_block(x_, y + 1, z_, tall_grass_lower);
-						auto ret2 = set_block(x_, y + 2, z_, tall_grass_upper);
+						auto ret = set_block(x_, y, z_, grass_block_snowy);
+						auto r = set_block(x_, y + 1, z_, snow);
 					}
-					else if (bush_val > 0.0f)
-						auto ret = set_block(x_, y + 1, z_, short_grass);
-
-					const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
-					if (tree_val > 0.6f)
-						trees.emplace_back(world_x, y, world_z);
+					/*if (!ret)
+						log("Set block failed!", LOG_LEVEL::ERROR);*/
+					if (y == y_max - 1 && y_max >= 64)
+					{
+						const double bush_val = bush_noise.octave2D(world_x * 2, world_z * 2, 2);
+						if (bush_val > 0.5f)
+						{
+							auto r = set_block(x_, y, z_, grass_id);
+							auto ret = set_block(x_, y + 1, z_, short_grass);
+						}
+						const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
+						if (tree_val > 0.7f)
+							trees.emplace_back(world_x, y, world_z);
+					}
+				}
+				if (y_max < 64)
+				{
+					for (int y = y_max - 1; y < 64; y++)
+					{
+						if (y == 63)
+						{
+							if (!set_block(x_, y, z_, ice))
+								log("Set block failed!", LOG_LEVEL::ERROR);
+						}
+						else
+						{
+							if (!set_block(x_, y, z_, water))
+								log("Set block failed!", LOG_LEVEL::ERROR);
+						}
+					}
 				}
 			}
-			if (y_max < 64)
+			else
 			{
-				for (int y = y_max - 1; y < 64; y++)
+				for (int y = -64; y < y_max; y++)
 				{
-					if (!set_block(x_, y, z_, water))
-						log("Set block failed!", LOG_LEVEL::ERROR);
+					if (y < y_max - 1)
+						auto ret = set_block(x_, y, z_, dirt);
+					else if (y_max >= 64)
+						auto ret = set_block(x_, y, z_, grass_id);
+					/*if (!ret)
+						log("Set block failed!", LOG_LEVEL::ERROR);*/
+					if (y == y_max - 1 && y_max >= 64)
+					{
+						const double bush_val = bush_noise.noise2D(world_x, world_z);
+						if (bush_val > 0.41f)
+						{
+							auto ret = set_block(x_, y + 1, z_, tall_grass_lower);
+							auto ret2 = set_block(x_, y + 2, z_, tall_grass_upper);
+						}
+						else if (bush_val > 0.0f)
+							auto ret = set_block(x_, y + 1, z_, short_grass);
+
+						const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
+						if (tree_val > 0.6f)
+							trees.emplace_back(world_x, y, world_z);
+					}
+				}
+				if (y_max < 64)
+				{
+					for (int y = y_max - 1; y < 64; y++)
+					{
+						if (!set_block(x_, y, z_, water))
+							log("Set block failed!", LOG_LEVEL::ERROR);
+					}
 				}
 			}
 		}
@@ -214,7 +276,7 @@ chunk & world::get_chunk(int x, int z)
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise);
+		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, temperature, biomes);
 		return chunk;
 	}
 	return ret->second;
@@ -226,7 +288,7 @@ chunk & world::get_chunk(int x, int z, int *spawn_y)
 	if (ret == chunks.end())
 	{
 		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
-		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, spawn_y);
+		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, temperature, biomes, spawn_y);
 		return chunk;
 	}
 	return ret->second;
@@ -242,11 +304,13 @@ void world::generate_seeds()
 	erosion_seed = dist(rng);
 	bush_seed = dist(rng);
 	tree_seed = dist(rng);
+	temperature_seed = dist(rng);
 
 	main_noise = siv::PerlinNoise {erosion_seed};
 	continentality_noise = siv::PerlinNoise {continentality_seed};
 	bush_noise = siv::PerlinNoise {bush_seed};
 	tree_noise = siv::PerlinNoise {tree_seed};
+	temperature = siv::PerlinNoise {tree_seed};
 }
 
 

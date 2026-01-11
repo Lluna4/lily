@@ -43,6 +43,30 @@ void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv)
 }
 
 template <typename ...T>
+void send_all_except_user_render_distance(std::tuple<T...> packet, user &u, int id, server &sv, double x, double z)
+{
+	double chunk_x = floor((float)x/16.0f);
+	double chunk_z = floor((float)z/16.0f);
+
+	for (auto &us: users)
+	{
+		//std::println("Checking user {}", us.second.fd);
+		if (us.second.fd != u.fd && us.second.state == STATE::PLAY)
+		{
+			double user_chunk_x = floor((float)us.second.x/16.0f);
+			double user_chunk_z = floor((float)us.second.z/16.0f);
+			if (abs(chunk_x - user_chunk_x) <= us.second.view_distance && abs(chunk_z - user_chunk_z) <= us.second.view_distance)
+			{
+				if (us.second.state == STATE::PLAY)
+				{
+					sv.send_packet(packet, us.first, id);
+				}
+			}
+		}
+	}
+}
+
+template <typename ...T>
 void send_all(std::tuple<T...> packet, int id, server &sv)
 {
 	for (auto &u: users)
@@ -258,7 +282,7 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 													u.x, u.y, u.z, (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256),
 													(char)(u.yaw/360 * 256), minecraft::varint(0), (short)0,
 													(short)0, (short)0);
-				send_all_except_user(spawn_entity, u, 0x01, sv);
+				send_all_except_user_render_distance(spawn_entity, u, 0x01, sv, u.x, u.z);
 				for (auto &us: users)
 				{
 					if (us.second.fd != u.fd)
@@ -610,6 +634,7 @@ int main()
 	w.set_blocks(std::move(process_block_registry("../generated/reports/blocks.json")));
 	log("Added block registry", LOG_LEVEL::NORMAL);
 	w.generate_seeds();
+	get_registry(w.biomes);
 	w.get_chunk(0, 0, &spawn_y);
 	while (true)
 	{

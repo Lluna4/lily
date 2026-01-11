@@ -122,6 +122,8 @@ struct section
 {
 	std::vector<std::uint64_t> palette;
 	std::vector<int8_t> blocks;
+	std::vector<std::uint64_t> biome_palette;
+	std::vector<int8_t> biome;
 	short non_air_blocks;
 };
 
@@ -141,6 +143,8 @@ struct chunk
 			sec.blocks.push_back(0);
 			sec.palette.push_back(get_block("minecraft:air", {}));
 			sec.non_air_blocks = 0;
+			sec.biome.resize(64);
+			sec.biome_palette.push_back(1);
 			sections.push_back(sec);
 		}
 	}
@@ -148,21 +152,24 @@ struct chunk
 	int x, z;
 	std::uint64_t get_block_id(int place_x, int place_y, int place_z);
 	std::expected<bool, chunk_error> set_block(int place_x, int place_y, int place_z, std::uint64_t b);
-	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, int *spawn_y = nullptr);
+	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, std::vector<std::string> &biomes, int *spawn_y = nullptr);
 };
 
 struct world
 {
 	std::map<std::pair<int, int>, chunk> chunks;
 	std::vector<position_int> trees_to_build;
+	std::vector<std::string> biomes;
 	siv::PerlinNoise::seed_type continentality_seed;
 	siv::PerlinNoise::seed_type erosion_seed;
 	siv::PerlinNoise::seed_type bush_seed;
 	siv::PerlinNoise::seed_type tree_seed;
+	siv::PerlinNoise::seed_type temperature_seed;
 	siv::PerlinNoise continentality_noise;
 	siv::PerlinNoise main_noise;
 	siv::PerlinNoise bush_noise;
 	siv::PerlinNoise tree_noise;
+	siv::PerlinNoise temperature;
 
 	void set_blocks(std::map<std::string, block> blocks);
 	chunk &get_chunk(int x, int z);
