@@ -28,7 +28,7 @@
 #define be64toh(x) OSSwapBigToHostInt64(x)
 #define le64toh(x) OSSwapLittleToHostInt64(x)
 #endif
-#define read_comp_pkt(size, ptr, t) const_for_<size>([&](auto i){std::get<i.value>(t) = read_var<std::tuple_element_t<i.value, decltype(t)>>::call(&ptr);});
+#define read_comp_pkt(size, ptr, t) const_for_<size>([&](auto i){std::get<i.value>(t) = read_var<std::tuple_element_t<i.value, std::remove_reference_t<decltype(t)>>>::call(&ptr);});
 
 template <typename T>
 T read_type(char *v)
@@ -177,11 +177,10 @@ namespace netlib
         int fd;
     };
     template<typename ...T>
-    std::tuple<T...> read_packet(std::tuple<T...> packet, netlib::packet &pkt)
+    void read_packet(std::tuple<T...> &packet, netlib::packet &pkt)
     {
-        constexpr std::size_t size = std::tuple_size_v<decltype(packet)>;
+        constexpr std::size_t size = sizeof...(T);
         pkt.data.extra = pkt.data.data + pkt.header_size;
         read_comp_pkt(size, pkt.data, packet);
-        return packet;
     }
 }

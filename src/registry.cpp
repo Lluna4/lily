@@ -78,7 +78,7 @@ int send_registry(int fd, server &sv)
 	return a;
 }
 
-int get_registry(std::vector<std::string> &biomes)
+int get_registry(std::vector<std::string> &biomes, std::vector<std::string> &dimensions)
 {
 	int a = 0;
 	bool stop_a = false;
@@ -92,6 +92,13 @@ int get_registry(std::vector<std::string> &biomes)
 			continue;
 		if (entry.path().filename().string().starts_with("dialog"))
 			continue;
+		if (entry.path().filename().string() == "dimension_type")
+		{
+			for (const auto & ent : std::filesystem::directory_iterator(entry.path()))
+			{
+				dimensions.push_back(ent.path().stem().string());
+			}
+		}
 		for (const auto & ent : std::filesystem::directory_iterator(entry.path()))
 		{
 			if (ent.is_directory())

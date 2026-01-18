@@ -1,7 +1,9 @@
 #include "chunk.h"
 #include "json_reader.h"
 #include "log.h"
+#include "user.h"
 #include <cstdint>
+#include <utility>
 
 spline continentalness = {.dots = {{.start_noise_val = -1.0f, .end_noise_val = -0.8f, .start_value = 10, .end_value = 40},
 								   {.start_noise_val = -0.8f, .end_noise_val = -0.5f, .start_value = 40, .end_value = 45},
@@ -126,7 +128,7 @@ std::expected<bool, chunk_error> chunk::set_block(int place_x, int place_y, int 
 	return true;
 }
 
-void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, std::vector<std::string> &biomes, int *spawn_y)
+void chunk::generate(std::vector<tree> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, std::vector<std::string> &biomes, int *spawn_y)
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
@@ -143,6 +145,9 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 	std::uint64_t snow = get_block("minecraft:snow", {});
 	std::uint64_t ice = get_block("minecraft:ice", {});
 	std::uint64_t grass_block_snowy = get_block("minecraft:grass_block", {{"snowy", json_value("true")}});
+	std::uint64_t short_dry_grass = get_block("minecraft:short_dry_grass", {});
+	std::uint64_t tall_dry_grass = get_block("minecraft:tall_dry_grass", {});
+	std::uint64_t dead_bush = get_block("minecraft:dead_bush", {});
 
 	for (auto &sec: sections)
 	{
@@ -156,14 +161,23 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 		{
 			int world_x = x * 16 + (xx * 4);
 			int world_z = z * 16 + (i * 4);
-			const double temp = temperature.octave2D_11(world_x * 0.0003221649073064327, world_z * 0.00322164907306432, 2);
+			const double temp = temperature.octave2D_11(world_x * 0.0005221649073064327, world_z * 0.000522164907306432, 16);
+			if (temp >= 0.3f)
+			{
+				for (auto &sec: sections)
+				{
+					sec.biome_palette[1] = std::distance(biomes.begin(), std::find(biomes.begin(), biomes.end(), "desert"));
+				}
+			}	
 			for (int y = 0; y < 96; y++)
 			{
 				int section_index = ((y * 4))/16;
-				if (temp < 0.0f)
+				if (temp < -0.3f)
 					sections[section_index].biome[(rem_euclid(y, 4) * 16) + (i * 4) + xx] = 1;
-				else
+				else if (temp < 0.3f)
 					sections[section_index].biome[(rem_euclid(y, 4) * 16) + (i * 4) + xx] = 0;
+				else
+				 	sections[section_index].biome[(rem_euclid(y, 4) * 16) + (i * 4) + xx] = 1;
 			}
 		}
 	}
@@ -180,12 +194,12 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 
 			y_max = continentalness.get_value(value);
 			
-			const double temp = temperature.octave2D_11(world_x * 0.0003221649073064327, world_z * 0.00322164907306432, 2);
+			const double temp = temperature.octave2D_11(world_x * 0.0005221649073064327, world_z * 0.000522164907306432, 16);
 
 			if (world_x == 0 && world_z == 0)
 				*spawn_y = y_max;
 			
-			if (temp < 0)
+			if (temp < -0.3f)
 			{
 				for (int y = -64; y < y_max; y++)
 				{
@@ -208,7 +222,7 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 						}
 						const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
 						if (tree_val > 0.7f)
-							trees.emplace_back(world_x, y, world_z);
+							trees.emplace_back(position_int(world_x, y, world_z), TREE_TYPE::TAIGA);
 					}
 				}
 				if (y_max < 64)
@@ -228,7 +242,7 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 					}
 				}
 			}
-			else
+			else if (temp < 0.3f)
 			{
 				for (int y = -64; y < y_max; y++)
 				{
@@ -251,7 +265,48 @@ void chunk::generate(std::vector<position_int> &trees, siv::PerlinNoise &contine
 
 						const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
 						if (tree_val > 0.6f)
-							trees.emplace_back(world_x, y, world_z);
+							trees.emplace_back(position_int(world_x, y, world_z), TREE_TYPE::OAK);
+					}
+				}
+				if (y_max < 64)
+				{
+					for (int y = y_max - 1; y < 64; y++)
+					{
+						if (!set_block(x_, y, z_, water))
+							log("Set block failed!", LOG_LEVEL::ERROR);
+					}
+				}
+			}
+			else
+			{
+				for (int y = -64; y < y_max; y++)
+				{
+					if (y < y_max - 1)
+						auto ret = set_block(x_, y, z_, sand);
+					else if (y_max >= 64)
+					{
+						auto ret = set_block(x_, y, z_, sand);
+					}
+					/*if (!ret)
+						log("Set block failed!", LOG_LEVEL::ERROR);*/
+					if (y == y_max - 1 && y_max >= 64)
+					{
+						const double bush_val = bush_noise.octave2D(world_x * 2, world_z * 2, 2);
+						if (bush_val > 0.6f)
+						{
+							auto ret = set_block(x_, y + 1, z_, dead_bush);
+						}
+						else if (bush_val > 0.55f)
+						{
+							auto ret = set_block(x_, y + 1, z_, tall_dry_grass);
+						}
+						else if (bush_val > 0.5f)
+						{
+							auto ret = set_block(x_, y + 1, z_, short_dry_grass);
+						}
+						const double tree_val = tree_noise.noise2D(world_x * 1.5, world_z * 1.5);
+						if (tree_val > 0.7f)
+							trees.emplace_back(position_int(world_x, y, world_z), TREE_TYPE::CACTUS);
 					}
 				}
 				if (y_max < 64)
@@ -339,10 +394,24 @@ void world::build_trees()
 	const auto before = clock::now();
 	std::uint64_t log_id = get_block("minecraft:oak_log", {});
 	std::uint64_t leaves_id = get_block("minecraft:oak_leaves", {});
+
 	for (auto &pos: trees_to_build)
 	{
-		set_block(pos.x, pos.y + 1, pos.z, log_id);
-		set_block(pos.x, pos.y + 2, pos.z, log_id);
+		if (pos.type == TREE_TYPE::CACTUS)
+		{
+			std::uint64_t cactus = get_block("minecraft:cactus", {});
+			std::random_device dev;
+			std::mt19937 rng(dev());
+			std::uniform_int_distribution<std::mt19937::result_type> dist(1, 4);
+			int cactus_size = dist(rng);
+			for (int y = pos.pos.y + 1; y < (pos.pos.y + cactus_size); y++)
+			{
+				set_block(pos.pos.x, y, pos.pos.z, cactus);
+			}
+			continue;
+		}
+		set_block(pos.pos.x, pos.pos.y + 1, pos.pos.z, log_id);
+		set_block(pos.pos.x, pos.pos.y + 2, pos.pos.z, log_id);
 		for (int y = 3; y < 5; y++)
 		{
 			for(int z = -3; z <= 3; z++)
@@ -350,9 +419,9 @@ void world::build_trees()
 				for(int x = -3; x <= 3; x++)
 				{
 					if (x == 0 && z == 0)
-						set_block(pos.x + x, pos.y + y, pos.z + z, log_id);
+						set_block(pos.pos.x + x, pos.pos.y + y, pos.pos.z + z, log_id);
 					else
-						set_block(pos.x + x, pos.y + y, pos.z + z, leaves_id);
+						set_block(pos.pos.x + x, pos.pos.y + y, pos.pos.z + z, leaves_id);
 				}
 			}
 		}
@@ -361,16 +430,16 @@ void world::build_trees()
 			for(int x = -2; x <= 2; x++)
 			{
 				if (x == 0 && z == 0)
-					set_block(pos.x + x, pos.y + 5, pos.z + z, log_id);
+					set_block(pos.pos.x + x, pos.pos.y + 5, pos.pos.z + z, log_id);
 				else
-					set_block(pos.x + x, pos.y + 5, pos.z + z, leaves_id);
+					set_block(pos.pos.x + x, pos.pos.y + 5, pos.pos.z + z, leaves_id);
 			}
 		}
-		set_block(pos.x + 1, pos.y + 6, pos.z, leaves_id);
-		set_block(pos.x - 1, pos.y + 6, pos.z, leaves_id);
-		set_block(pos.x, pos.y + 6, pos.z, leaves_id);
-		set_block(pos.x, pos.y + 6, pos.z + 1, leaves_id);
-		set_block(pos.x, pos.y + 6, pos.z - 1, leaves_id);
+		set_block(pos.pos.x + 1, pos.pos.y + 6, pos.pos.z, leaves_id);
+		set_block(pos.pos.x - 1, pos.pos.y + 6, pos.pos.z, leaves_id);
+		set_block(pos.pos.x, pos.pos.y + 6, pos.pos.z, leaves_id);
+		set_block(pos.pos.x, pos.pos.y + 6, pos.pos.z + 1, leaves_id);
+		set_block(pos.pos.x, pos.pos.y + 6, pos.pos.z - 1, leaves_id);
 	}
 	trees_to_build.clear();
 	const ms duration = clock::now() - before;

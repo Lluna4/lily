@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <format>
+#include <memory>
 #include <print>
 #include <chrono>
 #include <map>
@@ -16,155 +17,24 @@
 #include "log.h"
 #include "chunk.h"
 #include "blocks.h"
+#include "packet.h"
 
 std::map<int, user> users;
 std::vector<int> disconnected;
-int chat_id = 0;
-world w;
-std::map<int, std::string> items;
 std::vector<block> modified_blocks;
+std::vector<std::string> dimensions;
+std::map<int, std::unique_ptr<packet_base>> packet_definitions_handshake;
+std::map<int, std::unique_ptr<packet_base>> packet_definitions_login;
+std::map<int, std::unique_ptr<packet_base>> packet_definitions_config;
+std::map<int, std::unique_ptr<packet_base>> packet_definitions_play;
+server sv{};
+
 long log_id = 0;
 long leaves_id = 0;
 long grass_id;
 long dirt_id;
-int spawn_y = 64;
 
-template <typename ...T>
-void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv)
-{
-	for (auto &us: users)
-	{
-		//std::println("Checking user {}", us.second.fd);
-		if (us.second.fd != u.fd && us.second.state == STATE::PLAY)
-		{
-			sv.send_packet(packet, us.second.fd, id);
-		}
-	}
-}
-
-template <typename ...T>
-void send_all_except_user_render_distance(std::tuple<T...> packet, user &u, int id, server &sv, double x, double z)
-{
-	double chunk_x = floor((float)x/16.0f);
-	double chunk_z = floor((float)z/16.0f);
-
-	for (auto &us: users)
-	{
-		//std::println("Checking user {}", us.second.fd);
-		if (us.second.fd != u.fd && us.second.state == STATE::PLAY)
-		{
-			double user_chunk_x = floor((float)us.second.x/16.0f);
-			double user_chunk_z = floor((float)us.second.z/16.0f);
-			if (abs(chunk_x - user_chunk_x) <= us.second.view_distance && abs(chunk_z - user_chunk_z) <= us.second.view_distance)
-			{
-				if (us.second.state == STATE::PLAY)
-				{
-					sv.send_packet(packet, us.first, id);
-				}
-			}
-		}
-	}
-}
-
-template <typename ...T>
-void send_all(std::tuple<T...> packet, int id, server &sv)
-{
-	for (auto &u: users)
-	{
-		if (u.second.state == STATE::PLAY)
-			sv.send_packet(packet, u.first, id);
-	}
-}
-
-template <typename ...T>
-void send_render_distance(std::tuple<T...> packet, int id, server &sv, double x, double z)
-{
-	double chunk_x = floor((float)x/16.0f);
-	double chunk_z = floor((float)z/16.0f);
-
-	for (auto &u: users)
-	{
-		double user_chunk_x = floor((float)u.second.x/16.0f);
-		double user_chunk_z = floor((float)u.second.z/16.0f);
-		if (abs(chunk_x - user_chunk_x) <= u.second.view_distance && abs(chunk_z - user_chunk_z) <= u.second.view_distance)
-		{
-			if (u.second.state == STATE::PLAY)
-			{
-				sv.send_packet(packet, u.first, id);
-			}
-		}
-	}
-}
-
-void stream_world(user &u, server &sv)
-{
-	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
-	{
-		auto set_center_chunk = std::make_tuple(minecraft::varint((unsigned long)(*(unsigned int *)&u.chunk_x)), minecraft::varint((unsigned long)(*(unsigned int *)&u.chunk_z)));
-		sv.send_packet(set_center_chunk, u.fd, 0x57);
-	}
-	else
-		return;
-	if (u.chunk_x != u.prev_chunk_x)
-	{
-		int chunk_start_x = u.chunk_x + u.view_distance;
-
-		if (u.chunk_x < u.prev_chunk_x)
-			chunk_start_x = u.chunk_x - u.view_distance;
-		
-		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
-		{
-			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
-			{
-				chunk &c = w.get_chunk(x, z);
-			}
-		}
-		w.build_trees();
-		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
-		{
-			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
-			{
-				chunk &c = w.get_chunk(x, z);
-				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
-							minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
-							minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-				sv.send_packet(chunk_data, u.fd, 0x27);
-			}
-		}
-		//send_system_chat("Moved chunks in x", users, sv);
-	}
-	if (u.chunk_z != u.prev_chunk_z)
-	{
-		int chunk_start_z = u.chunk_z + u.view_distance;
-
-		if (u.chunk_z < u.prev_chunk_z)
-			chunk_start_z = u.chunk_z - u.view_distance;
-		
-		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
-		{
-			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
-			{
-				chunk &c = w.get_chunk(x, z);
-			}
-		}
-		w.build_trees();
-		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
-		{
-			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
-			{
-				chunk &c = w.get_chunk(x, z);
-				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
-							minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
-							minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-				sv.send_packet(chunk_data, u.fd, 0x27);
-			}
-		}
-		//send_system_chat("Moved chunks in z", users, sv);
-	}
-
-}
-
-void execute_packet(int fd, netlib::packet &packet, server &sv)
+void execute_packet(int fd, netlib::packet &packet)
 {
 	if (!users.contains(fd))
 	{
@@ -175,424 +45,47 @@ void execute_packet(int fd, netlib::packet &packet, server &sv)
 
 	if (u.state == STATE::HANDSHAKE)
 	{
-		switch (packet.id)
-		{
-			case 0:
-				if (packet.size < 4)
-				{
-					sv.disconnect_client(fd);
-					u.state = STATE::DISCONNECTED;
-					disconnected.push_back(fd);
-					break;
-				}
-				std::tuple<minecraft::varint, minecraft::string, unsigned short, minecraft::varint> handshake;
-				handshake = netlib::read_packet(std::move(handshake), packet);
-				log(std::format("Received handshake packet with version {} address {} port {} intent {}",
-					std::get<VERSION>(handshake).num, std::get<ADDRESS>(handshake).data.data, std::get<PORT>(handshake), std::get<INTENT>(handshake).num), LOG_LEVEL::NORMAL);
-				
-				if (std::get<0>(handshake).num != 772)
-				{
-					sv.disconnect_client(fd);
-					u.state = STATE::DISCONNECTED;
-					disconnected.push_back(fd);
-					break;
-				}
-				if (std::get<3>(handshake).num == 1)
-					u.state = STATE::STATUS;
-				else if (std::get<3>(handshake).num == 2)
-					u.state = STATE::LOGIN;
-				break;
-		}
+		auto pkt = packet_definitions_handshake.find(packet.id);
+		if (pkt == packet_definitions_handshake.end())
+			return;
+
+		auto p = pkt->second.get();
+
+		p->parse(packet);
+		p->handle(sv, users, disconnected, fd);
 	}
 	else if (u.state == STATE::LOGIN)
 	{
-		switch (packet.id)
-		{
-			case 0x00:
-			{
-				minecraft::string res;
-				minecraft::read_string(packet.data.data + packet.header_size, res);
-				u.name = res.data.data;
-				u.uuid.generate(u.name);
-				auto login_success = std::make_tuple(u.uuid, u.name, minecraft::varint(0));
-				sv.send_packet(login_success, u.fd, 0x02);
-				break;
-			}
-			case 0x03:
-			{
-				u.state = STATE::CONFIGURATION;
-			}
-		}
+		auto pkt = packet_definitions_login.find(packet.id);
+		if (pkt == packet_definitions_login.end())
+			return;
+
+		auto p = pkt->second.get();
+
+		p->parse(packet);
+		p->handle(sv, users, disconnected, fd);
 	}
 	else if (u.state == STATE::CONFIGURATION)
 	{
-		switch (packet.id)
-		{
-			case 0x00:
-			{
-				std::tuple<minecraft::string, char, minecraft::varint, bool, unsigned char, minecraft::varint, bool, bool, minecraft::varint> client_info;
-				client_info = netlib::read_packet(std::move(client_info), packet);
+		auto pkt = packet_definitions_config.find(packet.id);
+		if (pkt == packet_definitions_config.end())
+			return;
 
-				log(std::format("Locale {} View distance {}", std::get<LOCALE>(client_info).data.data, (int)std::get<VIEW_DISTANCE>(client_info)), LOG_LEVEL::NORMAL);
-				u.locale = std::get<LOCALE>(client_info).data.data;
-				u.view_distance = std::get<VIEW_DISTANCE>(client_info);
+		auto p = pkt->second.get();
 
-				auto known_packs = std::make_tuple(minecraft::varint(1), std::string("minecraft"), std::string("core"), std::string("1.21.8"));
-				sv.send_packet(known_packs, fd, 0x0E);
-				chat_id = send_registry(fd, sv);
-
-				/*auto update_tags = std::make_tuple(minecraft::varint(1), std::string("minecraft:fluid"), minecraft::varint(1),
-													minecraft::varint(w.blocks.find("minecraft:water")->second.actual_id));
-				sv.send_packet(update_tags, fd, 0x0D);*/
-				sv.send_packet(fd, 0x03);
-				break;
-			}
-
-			case 0x02:
-			{
-				std::tuple<minecraft::string> plugin_message;
-				plugin_message = netlib::read_packet(std::move(plugin_message), packet);
-				log(std::format("Plugin message sent from channel {}", std::get<0>(plugin_message).data.data), LOG_LEVEL::NORMAL);
-				break;
-			}
-			case 0x03:
-			{
-
-				auto login = std::make_tuple(fd, false,minecraft::varint(1) ,(std::string)"minecraft:overworld",
-											minecraft::varint(20), minecraft::varint(u.view_distance),
-											minecraft::varint(12), false, false, false, minecraft::varint(0),
-											(std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
-											(char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
-											false);
-				auto commands = std::make_tuple(minecraft::varint(3),
-								(char)0x00, minecraft::varint(2), minecraft::varint(1), minecraft::varint(2),
-								(char)0x01, minecraft::varint(1), minecraft::varint(2), std::string("pronouns"),
-								(char)0x02, minecraft::varint(0), std::string("pronouns"), minecraft::varint(5), minecraft::varint(2),
-								minecraft::varint(0));
-				sv.send_packet(commands, fd, 0x10);
-				u.y = spawn_y;
-				sv.send_packet(login, fd, 0x2B);
-				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
-												(double)0.0f, u.yaw, u.pitch, (int)0);
-				sv.send_packet(sync_pos, fd, 0x41);
-				auto add_to_list = std::make_tuple((char)(0x01 | 0x08 | 0x20), minecraft::varint(1), u.uuid, u.name, minecraft::varint(0),
-													true, true,(char)0x0a ,minecraft::string_tag(std::format("{} [{}]", u.name, u.pronouns), "text"), (char)0x00);
-				send_all_except_user(add_to_list, u, 0x3F, sv);
-				auto spawn_entity = std::make_tuple(minecraft::varint(fd), u.uuid, minecraft::varint(149),
-													u.x, u.y, u.z, (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256),
-													(char)(u.yaw/360 * 256), minecraft::varint(0), (short)0,
-													(short)0, (short)0);
-				send_all_except_user_render_distance(spawn_entity, u, 0x01, sv, u.x, u.z);
-				for (auto &us: users)
-				{
-					if (us.second.fd != u.fd)
-					{
-
-						auto add_to_list_user = std::make_tuple((char)(0x01 | 0x08 | 0x20), minecraft::varint(1), us.second.uuid, us.second.name, minecraft::varint(0),
-													true, true, (char)0x0a, minecraft::string_tag(std::format("{} [{}]", us.second.name, us.second.pronouns), "text"), (char)0x00);
-						sv.send_packet(add_to_list_user, fd, 0x3F);
-						auto spawn_entity_user = std::make_tuple(minecraft::varint(us.second.fd), us.second.uuid, minecraft::varint(149),
-									us.second.x, us.second.y, us.second.z, (char)((us.second.pitch/360) * 256),
-									(char)((us.second.yaw/360) * 256),(char)((us.second.yaw/360) * 256), minecraft::varint(0), (short)0,
-									(short)0, (short)0);
-						sv.send_packet(spawn_entity_user, fd, 0x01);
-					}
-				}
-
-				auto set_effect = std::make_tuple(minecraft::varint(fd), minecraft::varint(15), minecraft::varint(1),
-												minecraft::varint(99999999), (char)0x04);
-				sv.send_packet(set_effect, fd, 0x7D);
-				auto game_event = std::make_tuple((unsigned char)13, 0.0f);
-				sv.send_packet(game_event, fd, 0x22);
-				auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
-				sv.send_packet(set_center_chunk, fd, 0x57);
-				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
-				{
-					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
-					{
-						chunk &c = w.get_chunk(x, y);
-					}
-				}
-				w.build_trees();
-				for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
-				{
-					for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
-					{
-						chunk &c = w.get_chunk(x, y);
-						auto chunk_data = std::make_tuple(x, y, minecraft::varint(0), std::ref(c), minecraft::varint(0),
-									minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
-									minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-						sv.send_packet(chunk_data, fd, 0x27);
-					}
-				}
-
-				u.state = STATE::PLAY;
-				send_system_chat(std::format("{} connected", u.name), users, sv);
-				break;
-			}
-		}
+		p->parse(packet);
+		p->handle(sv, users, disconnected, fd);
 	}
 	else if (u.state == STATE::PLAY)
 	{
-		switch (packet.id)
-		{
-			case 0x00:
-			{
-				log("teleport confirm", LOG_LEVEL::NORMAL);
-				std::tuple<minecraft::varint> confirm_teleport;
-				confirm_teleport = netlib::read_packet(confirm_teleport, packet);
-				break;
-			}
-			case 0x06:
-			{
-				std::tuple<minecraft::string> command;
-				command = netlib::read_packet(std::move(command), packet);
-				std::string comm(std::get<0>(command).data.data);
+		auto pkt = packet_definitions_play.find(packet.id);
+		if (pkt == packet_definitions_play.end())
+			return;
 
-				if (comm.starts_with("pronouns"))
-				{
-					std::string pronouns = comm.substr(comm.find(' ') + 1);
-					u.pronouns = pronouns;
-				}
-				break;
-			}
-			case 0x08:
-			{
-				std::tuple<minecraft::string> chat_message;
-				chat_message = netlib::read_packet(std::move(chat_message), packet);
-				send_chat(std::get<0>(chat_message).data.data, std::format("{} [{}]", u.name, u.pronouns), chat_id, sv, users);
-				break;
-			}
-			case 0x1B:
-			{
-				std::tuple<long> keep_alive_response;
-				keep_alive_response = netlib::read_packet(keep_alive_response, packet);
-				if (std::get<0>(keep_alive_response) != 4 || u.sent == false)
-				{
-					sv.disconnect_client(fd);
-					u.state = STATE::DISCONNECTED;
-					disconnected.push_back(fd);
-					break;
-				}
-				u.ticks_to_keepalive = 500;
-				u.sent = false;
-				log("Received keep alive", LOG_LEVEL::NORMAL);
-				break;
-			}
-			case 0x1D:
-			{
-				std::tuple<double, double, double, char> update_position;
-				update_position = netlib::read_packet(update_position, packet);
-				u.prev_x = u.x;
-				u.prev_y = u.y;
-				u.prev_z = u.z;
-				u.prev_chunk_x = u.chunk_x;
-				u.prev_chunk_z = u.chunk_z;
-				u.x = std::get<X>(update_position);
-				u.y = std::get<Y>(update_position);
-				u.z = std::get<Z>(update_position);
-				u.chunk_x = floor((float)u.x/16.0f);
-				u.chunk_z = floor((float)u.z/16.0f);
-				if (std::get<3>(update_position) == 0x01)
-					u.on_ground = true;
+		auto p = pkt->second.get();
 
-				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
-															(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096), u.on_ground);
-				send_all_except_user(update_player_position, u, 0x2E, sv);
-				stream_world(u, sv);
-				break;
-			}
-			case 0x1E:
-			{
-				std::tuple<double, double, double, float, float ,char> update_position_rotation;
-				update_position_rotation = netlib::read_packet(update_position_rotation, packet);
-				u.prev_x = u.x;
-				u.prev_y = u.y;
-				u.prev_z = u.z;
-				u.prev_chunk_x = u.chunk_x;
-				u.prev_chunk_z = u.chunk_z;
-				u.x = std::get<X>(update_position_rotation);
-				u.y = std::get<Y>(update_position_rotation);
-				u.z = std::get<Z>(update_position_rotation);
-				u.chunk_x = floor((float)u.x/16.0f);
-				u.chunk_z = floor((float)u.z/16.0f);
-				u.yaw = std::get<YAW>(update_position_rotation);
-				u.pitch = std::get<PITCH>(update_position_rotation);
-				if (std::get<FLAG>(update_position_rotation) == 0x01)
-					u.on_ground = true;
-
-				auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
-											(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096),
-											(char)((u.yaw/360) * 256), (char)((u.pitch/360) * 256), u.on_ground);
-				send_all_except_user(update_player_position, u, 0x2F, sv);
-
-				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
-				send_all_except_user(update_head, u, 0x4C, sv);
-				stream_world(u, sv);
-				break;
-			}
-			case 0x1F:
-			{
-				std::tuple<float, float, char> update_rotation;
-				update_rotation = netlib::read_packet(update_rotation, packet);
-				u.yaw = std::get<0>(update_rotation);
-				u.pitch = std::get<1>(update_rotation);
-				if (std::get<2>(update_rotation) == 0x01)
-					u.on_ground = true;
-				auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
-				send_all_except_user(update_head, u, 0x4C, sv);
-				break;
-			}
-			case 0x20:
-			{
-				std::tuple<char> update_flags;
-				update_flags = netlib::read_packet(update_flags, packet);
-				if (std::get<0>(update_flags) == 0x01)
-					u.on_ground = true;
-				break;
-			}
-			case 0x28:
-			{
-				std::tuple<minecraft::varint, int64_t, char, minecraft::varint> player_action;
-				player_action = netlib::read_packet(player_action, packet);
-
-				long pos = std::get<LOCATION>(player_action);
-				int x = pos >> 38;
-				int y = pos << 52 >> 52;
-				int z = pos << 26 >> 38;
-				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
-				auto ret = w.set_block(x, y, z, w.get_block("minecraft:air", {}));
-				if (!ret)
-					log("Block placement failed", LOG_LEVEL::ERROR);
-
-				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(0));
-				send_render_distance(block_update, 0x08, sv, u.x, u.z);
-				auto awknowledge_block = std::make_tuple(minecraft::varint(std::get<SEQUENCE>(player_action)));
-				sv.send_packet(awknowledge_block, fd, 0x04);
-				//log(std::format("Block placed was actually {}", items[0]), LOG_LEVEL::NORMAL);
-				break;
-			}
-			case 0x34:
-			{
-				std::tuple<short> set_held_item;
-				set_held_item = netlib::read_packet(set_held_item, packet);
-				u.held_item = std::get<0>(set_held_item);
-
-				auto set_equipment = std::make_tuple(minecraft::varint(fd), (char)0, minecraft::varint(1),
-												minecraft::varint(u.inventory[u.held_item + 36]), minecraft::varint(0),
-												minecraft::varint(0));
-				send_all_except_user(set_equipment, u, 0x5F, sv);
-				break;
-			}
-			case 0x37:
-			{
-				std::tuple<short, minecraft::varint, minecraft::varint> set_creative_slot;
-				set_creative_slot = netlib::read_packet(set_creative_slot, packet);
-				u.inventory[std::get<SLOT_ID>(set_creative_slot)] = std::get<ITEM_ID>(set_creative_slot).num;
-				if (std::get<SLOT_ID>(set_creative_slot) == 45)
-				{
-					auto set_equipment = std::make_tuple(minecraft::varint(fd), (char)1, minecraft::varint(1),
-								minecraft::varint(u.inventory[45]), minecraft::varint(0),
-								minecraft::varint(0));
-					send_all_except_user(set_equipment, u, 0x5F, sv);
-				}
-				if (std::get<SLOT_ID>(set_creative_slot) == u.held_item + 36)
-				{
-					auto set_equipment = std::make_tuple(minecraft::varint(fd), (char)0, minecraft::varint(1),
-								minecraft::varint(u.inventory[u.held_item + 36]), minecraft::varint(0),
-								minecraft::varint(0));
-					send_all_except_user(set_equipment, u, 0x5F, sv);
-				}
-				break;
-			}
-			case 0x3C:
-			{
-				std::tuple<minecraft::varint> swing_arm;
-				swing_arm = netlib::read_packet(swing_arm, packet);
-				unsigned char anim_id = 0;
-				if (std::get<0>(swing_arm).num == 1)
-					anim_id = 3;
-				auto entity_animation = std::make_tuple(minecraft::varint(fd), anim_id);
-				send_all_except_user(entity_animation, u, 0x02, sv);
-				break;
-			}
-			case 0x3F:
-			{
-				std::tuple<minecraft::varint, int64_t, minecraft::varint, float, float, float, bool, bool, minecraft::varint> use_item_on;
-				use_item_on = netlib::read_packet(use_item_on, packet);
-				long pos = std::get<1>(use_item_on);
-				int x = pos >> 38;
-				int y = pos << 52 >> 52;
-				int z = pos << 26 >> 38;
-				minecraft::varint face = std::get<2>(use_item_on);
-				log(std::format("Face {}", face.num), LOG_LEVEL::NORMAL);
-				switch (face.num)
-				{
-					case 0:
-						y--;
-						break;
-					case 1:
-						y++;
-						break;
-					case 2:
-						z--;
-						break;
-					case 3:
-						z++;
-						break;
-					case 4:
-						x--;
-						break;
-					case 5:
-						x++;
-						break;
-				}
-				bool colliding = false;
-				for (auto &u: users)
-				{
-					if (u.second.state == STATE::PLAY)
-					{
-						colliding = u.second.check_collision_block(position(x, y, z));
-					}
-				}
-				if (colliding)
-					break;
-
-				auto props = w.get_block_properties(items[u.inventory[u.held_item + 36]]);
-				std::map<std::string, json_value> properties;
-				if (props.type == TYPE_JSON::OBJECT)
-				{
-					for (auto &[property, value]: props.get<json_object>())
-					{
-						if (property == "axis")
-						{
-							if (face.num == 0 || face.num == 1)
-								properties.insert({"axis", json_value("y")});
-							else if (face.num == 2 || face.num == 3)
-								properties.insert({"axis", json_value("z")});
-							else if (face.num == 4 || face.num == 5)
-								properties.insert({"axis", json_value("x")});
-						}
-						if (property == "waterlogged")
-						{
-							properties.insert({"waterlogged", json_value(false)});
-						}
-					}
-				}
-				log(std::format("Setting block at x: {} y: {} z: {}", x, y, z), LOG_LEVEL::NORMAL);
-				std::uint64_t id = w.get_block(items[u.inventory[u.held_item + 36]], properties);
-				auto ret = w.set_block(x, y, z, w.get_block(items[u.inventory[u.held_item + 36]], properties));
-				if (!ret)
-					log("Block placement failed", LOG_LEVEL::ERROR);
-				auto block_update = std::make_tuple((int64_t)((((x & (unsigned long)0x3FFFFFF) << 38) | ((z & (unsigned long)0x3FFFFFF) << 12) | (y & (unsigned long)0xFFF))), minecraft::varint(id));
-				send_render_distance(block_update, 0x08, sv, u.x, u.z);
-				auto awknowledge_block = std::make_tuple(std::get<8>(use_item_on));
-				sv.send_packet(awknowledge_block, fd, 0x04);
-				log(std::format("Block placed is {}", items[u.inventory[u.held_item + 36]]), LOG_LEVEL::NORMAL);
-				log(std::format("Id is {}", id), LOG_LEVEL::NORMAL);
-				break;
-			}
-		}
+		p->parse(packet);
+		p->handle(sv, users, disconnected, fd);
 	}
 }
 
@@ -623,7 +116,6 @@ int main()
 	using ms = std::chrono::duration<double, std::milli>;
 	if(!create_log_file())
 		log("Creating log file failed", LOG_LEVEL::WARNING);
-	server sv{};
 	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
 	{
@@ -634,8 +126,9 @@ int main()
 	w.set_blocks(std::move(process_block_registry("../generated/reports/blocks.json")));
 	log("Added block registry", LOG_LEVEL::NORMAL);
 	w.generate_seeds();
-	get_registry(w.biomes);
+	get_registry(w.biomes, dimensions);
 	w.get_chunk(0, 0, &spawn_y);
+	set_packets(packet_definitions_handshake, packet_definitions_login, packet_definitions_config, packet_definitions_play);
 	while (true)
 	{
 		const auto before = clock::now();
@@ -648,9 +141,9 @@ int main()
 				if (u.state == STATE::PLAY)
 				{
 					auto remove_entity = std::make_tuple(minecraft::varint(1), minecraft::varint(pkt.fd));
-					send_all_except_user(remove_entity, u, 0x46, sv);
+					send_all_except_user(remove_entity, u, 0x46, sv, users);
 					auto remove_info = std::make_tuple(minecraft::varint(1), u.uuid);
-					send_all_except_user(remove_info, u, 0x3E, sv);
+					send_all_except_user(remove_info, u, 0x3E, sv, users);
 					send_system_chat(std::format("{} disconnected", u.name), users, sv);
 				}
 				log("Client disconnected", LOG_LEVEL::NORMAL);
@@ -658,7 +151,7 @@ int main()
 				continue;
 			}
 			//log(std::format("Got a packet from fd {} with id {} and size {}", pkt.fd, pkt.id, pkt.size), LOG_LEVEL::NORMAL);
-			execute_packet(pkt.fd, pkt, sv);
+			execute_packet(pkt.fd, pkt);
 			for (auto &disconnect: disconnected)
 				users.erase(disconnect);
 		}

@@ -97,7 +97,7 @@ void server::recv_thread()
 			//std::println("Read a packet with size {}", total_to_read);
 			std::tuple<minecraft::varint, minecraft::varint> head;
 
-			head = netlib::read_packet(head, dummy_pkt);
+			netlib::read_packet(head, dummy_pkt);
 			unsigned long header_size = (std::get<0>(head).size + std::get<1>(head).size);
 			std::lock_guard lock(mut);
 			packets.emplace_back(std::get<0>(head).num, std::get<1>(head).num, header_size, std::move(dummy_pkt.data), current_fd);

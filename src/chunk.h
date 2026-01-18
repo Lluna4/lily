@@ -17,6 +17,22 @@ int rem_euclid(int a, int b);
 
 static std::map<std::string, block> blocks_;
 
+enum class TREE_TYPE
+{
+	OAK,
+	TAIGA,
+	CACTUS
+};
+
+struct tree
+{
+	tree(position_int p, TREE_TYPE t)
+	:pos(p), type(t)
+	{}
+	position_int pos;
+	TREE_TYPE type;
+};
+
 static std::uint64_t get_block(std::string block, std::map<std::string, json_value> properties)
 {
 	auto b = blocks_.find(block);
@@ -152,13 +168,13 @@ struct chunk
 	int x, z;
 	std::uint64_t get_block_id(int place_x, int place_y, int place_z);
 	std::expected<bool, chunk_error> set_block(int place_x, int place_y, int place_z, std::uint64_t b);
-	void generate(std::vector<position_int> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, std::vector<std::string> &biomes, int *spawn_y = nullptr);
+	void generate(std::vector<tree> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, std::vector<std::string> &biomes, int *spawn_y = nullptr);
 };
 
 struct world
 {
 	std::map<std::pair<int, int>, chunk> chunks;
-	std::vector<position_int> trees_to_build;
+	std::vector<tree> trees_to_build;
 	std::vector<std::string> biomes;
 	siv::PerlinNoise::seed_type continentality_seed;
 	siv::PerlinNoise::seed_type erosion_seed;
