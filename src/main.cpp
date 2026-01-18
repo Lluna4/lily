@@ -10,7 +10,6 @@
 #include "mc_types.h"
 #include "user.h"
 #include "networking/mc_netlib.h"
-#include "packet_arguments.h"
 #include "registry.h"
 #include "block_registry_processing.h"
 #include "chat.h"
