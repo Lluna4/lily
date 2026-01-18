@@ -14,6 +14,7 @@ int chat_id = 0;
 int spawn_y = 64;
 world w;
 std::map<int, std::string> items;
+std::vector<std::string> dimensions;
 
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv, std::map<int, user> &users)
@@ -263,7 +264,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
             user &u = users.find(fd)->second;
             auto login = std::make_tuple((int)fd, false,minecraft::varint(1) ,(std::string)"minecraft:overworld",
                                         minecraft::varint(20), minecraft::varint(u.view_distance),
-                                        minecraft::varint(12), false, false, false, minecraft::varint(0),
+                                        minecraft::varint(12), false, false, false, minecraft::varint(std::distance(dimensions.begin(), std::find(dimensions.begin(), dimensions.end(), "overworld"))),
                                         (std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
                                         (char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
                                         false);
@@ -548,7 +549,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 
 	packet_definitions_play[0x3F] = std::make_unique<packet<minecraft::varint, int64_t, minecraft::varint, float, float, float, bool, bool, minecraft::varint>>(
-		"Swing arm",
+		"Use item on",
 		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, minecraft::varint &hand, int64_t &location, minecraft::varint &face, float &cursor_x, float &cursor_y, float &cursor_z, bool &inside_block, bool &world_border, minecraft::varint &sequence)
 		{
 			user &u = users.find(fd)->second;

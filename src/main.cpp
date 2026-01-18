@@ -21,7 +21,7 @@
 std::map<int, user> users;
 std::vector<int> disconnected;
 std::vector<block> modified_blocks;
-std::vector<std::string> dimensions;
+
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_handshake;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_login;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_config;
