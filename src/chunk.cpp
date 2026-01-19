@@ -381,6 +381,17 @@ std::expected<bool, chunk_error> world::set_block(int x, int y, int z, std::uint
 	return true;
 }
 
+void world::set_block_direct(int x, int y, int z, std::uint64_t b)
+{
+	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
+	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), b);
+	if (!ret)
+	{
+		log("Block placement failed", LOG_LEVEL::ERROR);
+		//return std::unexpected(ret.error());
+	}
+}
+
 void world::set_blocks(std::map<std::string, block> b)
 {
 	blocks_ = b;
@@ -408,6 +419,68 @@ void world::build_trees()
 			{
 				set_block(pos.pos.x, y, pos.pos.z, cactus);
 			}
+			continue;
+		}
+		else if (pos.type == TREE_TYPE::TAIGA)
+		{
+			log_id = get_block("minecraft:spruce_log", {});
+			set_block_direct(pos.pos.x, pos.pos.y + 1, pos.pos.z, log_id);
+			
+			for (int z = -3; z <=3; z++)
+			{
+				for(int x = -3; x <= 3; x++)
+				{
+					if (x == 0 && z == 0)
+						set_block_direct(pos.pos.x + x, pos.pos.y + 2, pos.pos.z + z, log_id);
+					else if (!(x == 3 && z == 3) && !(x == 3 && z == -3) && !(z == -3 && x == -3) && !(z == 3 && x == -3))
+						set_block_direct(pos.pos.x + x, pos.pos.y + 2, pos.pos.z + z, leaves_id);
+				}
+			}
+			for (int z = -2; z <= 2; z++)
+			{
+				for(int x = -2; x <= 2; x++)
+				{
+					if (x == 0 && z == 0)
+						set_block_direct(pos.pos.x + x, pos.pos.y + 3, pos.pos.z + z, log_id);
+					else if (!(x == 2 && z == 2) && !(x == 2 && z == -2) && !(z == -2 && x == -2) && !(z == 2 && x == -2))
+						set_block_direct(pos.pos.x + x, pos.pos.y + 3, pos.pos.z + z, leaves_id);
+				}
+			}
+			set_block_direct(pos.pos.x + 1, pos.pos.y + 4, pos.pos.z, leaves_id);
+			set_block_direct(pos.pos.x - 1, pos.pos.y + 4, pos.pos.z, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 4, pos.pos.z + 1, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 4, pos.pos.z - 1, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 4, pos.pos.z, log_id);
+
+			for (int z = -2; z <= 2; z++)
+			{
+				for(int x = -2; x <= 2; x++)
+				{
+					if (x == 0 && z == 0)
+						set_block_direct(pos.pos.x + x, pos.pos.y + 5, pos.pos.z + z, log_id);
+					else if (!(x == 2 && z == 2) && !(x == 2 && z == -2) && !(z == -2 && x == -2) && !(z == 2 && x == -2))
+						set_block_direct(pos.pos.x + x, pos.pos.y + 5, pos.pos.z + z, leaves_id);
+				}
+			}
+
+			set_block_direct(pos.pos.x + 1, pos.pos.y + 6, pos.pos.z, leaves_id);
+			set_block_direct(pos.pos.x - 1, pos.pos.y + 6, pos.pos.z, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 6, pos.pos.z + 1, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 6, pos.pos.z - 1, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 6, pos.pos.z, log_id);
+
+			set_block_direct(pos.pos.x, pos.pos.y + 7, pos.pos.z, log_id);
+
+			set_block_direct(pos.pos.x + 1, pos.pos.y + 8, pos.pos.z, leaves_id);
+			set_block_direct(pos.pos.x - 1, pos.pos.y + 8, pos.pos.z, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 8, pos.pos.z + 1, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 8, pos.pos.z - 1, leaves_id);
+			set_block_direct(pos.pos.x, pos.pos.y + 8, pos.pos.z, leaves_id);
+			std::random_device dev;
+			std::mt19937 rng(dev());
+			std::uniform_int_distribution<std::mt19937::result_type> dist(0, 4);
+			if (dist(rng) >= 2)
+				set_block_direct(pos.pos.x, pos.pos.y + 9, pos.pos.z, leaves_id);
 			continue;
 		}
 		set_block(pos.pos.x, pos.pos.y + 1, pos.pos.z, log_id);

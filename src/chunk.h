@@ -192,6 +192,7 @@ struct world
 	chunk &get_chunk(int x, int z, int *spawn_y);
 	void generate_seeds();
 	std::expected<bool, chunk_error> set_block(int x, int y, int z, std::uint64_t b);
+	void set_block_direct(int x, int y, int z, std::uint64_t b);
 	void build_trees();
 	json_value get_block_properties(std::string block);
 	std::uint64_t get_block(std::string block, std::map<std::string, json_value> properties);
