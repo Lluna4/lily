@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 #include <sys/socket.h>
 #include <concepts>
 #include <cstring>
@@ -101,7 +102,13 @@ inline void write_type<minecraft::short_string>(buffer<char> *v, minecraft::shor
 template <>
 inline void write_type<minecraft::uuid>(buffer<char> *v, minecraft::uuid value)
 {
-    v->write(value.data.c_str(), value.data.length());
+    uint64_t msb = 0;
+    uint64_t lsb = 0;
+    memcpy(&msb, value.data.c_str(), sizeof(uint64_t));
+    memcpy(&lsb, &value.data.c_str()[7], sizeof(uint64_t));
+
+    v->write(&lsb, sizeof(uint64_t));
+    v->write(&msb, sizeof(uint64_t));
 }
 
 template <>

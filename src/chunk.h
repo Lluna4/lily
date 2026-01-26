@@ -168,7 +168,8 @@ struct chunk
 	int x, z;
 	std::uint64_t get_block_id(int place_x, int place_y, int place_z);
 	std::expected<bool, chunk_error> set_block(int place_x, int place_y, int place_z, std::uint64_t b);
-	void generate(std::vector<tree> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, std::vector<std::string> &biomes, int *spawn_y = nullptr);
+	void set_block_direct(int place_x, int place_y, int place_z, std::uint64_t b);
+	void generate(std::vector<tree> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, siv::PerlinNoise &cave_noise, std::vector<std::string> &biomes, int *spawn_y = nullptr);
 };
 
 struct world
@@ -181,11 +182,13 @@ struct world
 	siv::PerlinNoise::seed_type bush_seed;
 	siv::PerlinNoise::seed_type tree_seed;
 	siv::PerlinNoise::seed_type temperature_seed;
+	siv::PerlinNoise::seed_type cave_seed;
 	siv::PerlinNoise continentality_noise;
 	siv::PerlinNoise main_noise;
 	siv::PerlinNoise bush_noise;
 	siv::PerlinNoise tree_noise;
 	siv::PerlinNoise temperature;
+	siv::PerlinNoise cave_noise;
 
 	void set_blocks(std::map<std::string, block> blocks);
 	chunk &get_chunk(int x, int z);

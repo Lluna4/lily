@@ -23,6 +23,7 @@ std::vector<int> disconnected;
 std::vector<block> modified_blocks;
 
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_handshake;
+std::map<int, std::unique_ptr<packet_base>> packet_definitions_status;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_login;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_config;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_play;
@@ -53,13 +54,24 @@ void execute_packet(int fd, netlib::packet &packet)
 		p->parse(packet);
 		p->handle(sv, users, disconnected, fd);
 	}
+	else if (u.state == STATE::STATUS)
+	{
+		auto pkt = packet_definitions_status.find(packet.id);
+		if (pkt == packet_definitions_status.end())
+			return;
+
+		auto p = pkt->second.get();
+
+		p->parse(packet);
+		p->handle(sv, users, disconnected, fd);
+	}
 	else if (u.state == STATE::LOGIN)
 	{
 		auto pkt = packet_definitions_login.find(packet.id);
 		if (pkt == packet_definitions_login.end())
 			return;
 
-		auto p = pkt->second.get();
+		auto p = pkt->second.get(); 
 
 		p->parse(packet);
 		p->handle(sv, users, disconnected, fd);
@@ -127,7 +139,7 @@ int main()
 	w.generate_seeds();
 	get_registry(w.biomes, dimensions);
 	w.get_chunk(0, 0, &spawn_y);
-	set_packets(packet_definitions_handshake, packet_definitions_login, packet_definitions_config, packet_definitions_play);
+	set_packets(packet_definitions_handshake, packet_definitions_status, packet_definitions_login, packet_definitions_config, packet_definitions_play);
 	while (true)
 	{
 		const auto before = clock::now();

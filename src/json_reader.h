@@ -1,6 +1,6 @@
 #pragma once
 #include <print>
-#include <map>
+#include <unordered_map>
 #include <fstream>
 #include <variant>
 #include <vector>
@@ -20,13 +20,13 @@ enum class TYPE_JSON
 
 
 struct json_value;
-using json_object = std::map<std::string, json_value>;
+using json_object = std::unordered_map<std::string, json_value>;
 using json_array = std::vector<json_value>;
 struct json_value
 {
 	json_value()
 	{}
-	json_value(std::variant<bool, long, std::string, std::vector<json_value>, std::map<std::string, json_value>> v)
+	json_value(std::variant<bool, long, std::string, std::vector<json_value>, std::unordered_map<std::string, json_value>> v)
 		:value(std::move(v))
 	{
 		if (std::holds_alternative<bool>(value))
@@ -37,10 +37,10 @@ struct json_value
 			type = TYPE_JSON::STRING;
 		if (std::holds_alternative<std::vector<json_value>>(value))
 			type = TYPE_JSON::ARRAY;
-		if (std::holds_alternative<std::map<std::string, json_value>>(value))
+		if (std::holds_alternative<std::unordered_map<std::string, json_value>>(value))
 			type = TYPE_JSON::OBJECT;
 	}
-	std::variant<bool, long, std::string, std::vector<json_value>, std::map<std::string, json_value>> value;
+	std::variant<bool, long, std::string, std::vector<json_value>, std::unordered_map<std::string, json_value>> value;
 	TYPE_JSON type;
 
 	TYPE_JSON get_type()
@@ -53,7 +53,7 @@ struct json_value
 			return TYPE_JSON::STRING;
 		if (std::holds_alternative<std::vector<json_value>>(value))
 			return TYPE_JSON::ARRAY;
-		if (std::holds_alternative<std::map<std::string, json_value>>(value))
+		if (std::holds_alternative<std::unordered_map<std::string, json_value>>(value))
 			return TYPE_JSON::OBJECT;
 		return TYPE_JSON::BOOL;
 	}
@@ -79,7 +79,7 @@ class json_parser
 
 	private:
 		std::string parse_string();
-		std::map<std::string, json_value> parse_object();
+		std::unordered_map<std::string, json_value> parse_object();
 		long parse_number();
 		bool parse_bool();
 		std::vector<json_value> parse_array();

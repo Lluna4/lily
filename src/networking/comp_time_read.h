@@ -92,6 +92,18 @@ inline minecraft::string read_type<minecraft::string>(char *v)
     return ret;
 }
 
+template<>
+inline minecraft::uuid read_type<minecraft::uuid>(char *v)
+{
+    minecraft::uuid ret;
+
+    char a[17] = {0};
+    memcpy(a, v, 16);
+    ret.data = a;
+    
+    return ret;
+}
+
 template<typename T>
 struct read_var
 {
@@ -100,6 +112,11 @@ struct read_var
         if constexpr (typeid(T) == typeid(minecraft::varint) || typeid(T) == typeid(minecraft::string))
         {
             if (1 + v->parse_consumed_size > v->size)
+                return T{};
+        }
+        else if constexpr (typeid(T) == typeid(minecraft::uuid))
+        {
+            if (16 + v->parse_consumed_size > v->size)
                 return T{};
         }
         else
@@ -111,6 +128,8 @@ struct read_var
         size_t add_size = 0;
         if constexpr (typeid(T) == typeid(minecraft::varint) || typeid(T) == typeid(minecraft::string))
             add_size = ret.size;
+        else if constexpr (typeid(T) == typeid(minecraft::uuid))
+            add_size = 16;
         else
             add_size = sizeof(T);
 

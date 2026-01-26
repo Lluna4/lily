@@ -15,5 +15,5 @@ struct block_state
 	std::map<std::string, std::string> properties;
 };
 
-void process_item_registry(const std::string& path, std::map<int, std::string> &items);
+void process_item_registry(const std::string& path, std::unordered_map<int, std::string> &items);
 std::map<std::string, block> process_block_registry(const std::string& path);

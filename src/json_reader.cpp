@@ -59,9 +59,9 @@ std::string json_parser::parse_string()
 	return ret;
 }
 
-std::map<std::string, json_value> json_parser::parse_object()
+std::unordered_map<std::string, json_value> json_parser::parse_object()
 {
-	std::map<std::string, json_value> ret;
+	std::unordered_map<std::string, json_value> ret;
 	while (true)
 	{
 		bool brk2 = false;

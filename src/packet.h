@@ -13,7 +13,7 @@
 int chat_id = 0;
 int spawn_y = 64;
 world w;
-std::map<int, std::string> items;
+std::unordered_map<int, std::string> items;
 std::vector<std::string> dimensions;
 
 template <typename ...T>
@@ -183,7 +183,7 @@ struct packet: public packet_base
     }
 };
 
-void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions_handshake, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_login, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_config, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_play)
+void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions_handshake, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_status, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_login, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_config, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_play)
 {
     packet_definitions_handshake[0x0] = std::make_unique<packet<minecraft::varint, minecraft::string, unsigned short, minecraft::varint>>(
 		"Handshake",
@@ -206,13 +206,50 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 		}
 	);
 
-    packet_definitions_login[0x00] = std::make_unique<packet<minecraft::string>>(
+	packet_definitions_status[0x00] = std::make_unique<packet<>>(
+		"Status request",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd)
+		{
+			user &u = users.find(fd)->second;
+			std::string json_response = "{\
+											\"version\": { \
+												\"name\": \"1.21.8\", \
+												\"protocol\": 772 \
+											}, \
+											\"players\": { \
+												\"max\": 20, \
+												\"online\": 1 \
+											}, \
+											\"description\": { \
+												\"text\": \"Lily server!\" \
+											}, \
+											\"enforcesSecureChat\": false \
+										}";
+			auto status_response = std::make_tuple(json_response);
+			sv.send_packet(status_response, fd, 0x00);
+		}
+	);
+
+	packet_definitions_status[0x01] = std::make_unique<packet<long>>(
+		"Ping",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, long &timestamp)
+		{
+			log("Ping!", LOG_LEVEL::NORMAL);
+			user &u = users.find(fd)->second;
+			auto pong = std::make_tuple(timestamp); 
+			sv.send_packet(pong, fd, 0x01);
+			u.state = STATE::DISCONNECTED;
+			disconnected.push_back(fd);
+		}
+	);
+
+    packet_definitions_login[0x00] = std::make_unique<packet<minecraft::string, minecraft::uuid>>(
 		"Login start",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, minecraft::string &name)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, minecraft::string &name, minecraft::uuid &uuid)
 		{
 			user &u = users.find(fd)->second;
             u.name = name.data.data;
-            u.uuid.generate(u.name);
+            u.uuid.generate(name.data.data);
             log(std::format("Name is {}", name.data.data), LOG_LEVEL::NORMAL);
             auto login_success = std::make_tuple(u.uuid, u.name, minecraft::varint(0));
 			sv.send_packet(login_success, u.fd, 0x02);
@@ -268,10 +305,11 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
                                         (std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
                                         (char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
                                         false);
-            auto commands = std::make_tuple(minecraft::varint(3),
-                            (char)0x00, minecraft::varint(2), minecraft::varint(1), minecraft::varint(2),
+            auto commands = std::make_tuple(minecraft::varint(4),
+                            (char)0x00, minecraft::varint(3), minecraft::varint(1), minecraft::varint(2), minecraft::varint(3),
                             (char)0x01, minecraft::varint(1), minecraft::varint(2), std::string("pronouns"),
                             (char)0x02, minecraft::varint(0), std::string("pronouns"), minecraft::varint(5), minecraft::varint(2),
+							(char)0x01, minecraft::varint(0), std::string("tp"),
                             minecraft::varint(0));
             sv.send_packet(commands, fd, 0x10);
             u.y = spawn_y;
@@ -279,9 +317,10 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
             auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
                                             (double)0.0f, u.yaw, u.pitch, (int)0);
             sv.send_packet(sync_pos, fd, 0x41);
-            auto add_to_list = std::make_tuple((char)(0x01 | 0x08 | 0x20), minecraft::varint(1), u.uuid, u.name, minecraft::varint(0),
-                                                true, true,(char)0x0a ,minecraft::string_tag(std::format("{} [{}]", u.name, u.pronouns), "text"), (char)0x00);
-            send_all_except_user(add_to_list, u, 0x3F, sv, users);
+            auto add_to_list = std::make_tuple((char)(0x01 | 0x04 | 0x08 | 0x20), minecraft::varint(1), u.uuid, u.name, minecraft::varint(0),
+                                                minecraft::varint(1), true, true,(char)0x0a ,minecraft::string_tag(std::format("{} [{}]", u.name, u.pronouns), "text"), (char)0x00);
+            send_all(add_to_list,0x3F, sv, users);
+			sv.send_packet(add_to_list, fd, 0x3F);
             auto spawn_entity = std::make_tuple(minecraft::varint(fd), u.uuid, minecraft::varint(149),
                                                 u.x, u.y, u.z, (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256),
                                                 (char)(u.yaw/360 * 256), minecraft::varint(0), (short)0,
@@ -357,6 +396,18 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 			{
 				std::string pronouns = comm.substr(comm.find(' ') + 1);
 				u.pronouns = pronouns;
+			}
+
+			if (comm.starts_with("tp"))
+			{	
+				u.x += 20;
+				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
+                                            (double)0.0f, u.yaw, u.pitch, (int)0);
+            	sv.send_packet(sync_pos, fd, 0x41);
+
+				auto teleport_entity = std::make_tuple(minecraft::varint(fd), u.x, u.y, u.z, (double)0.0f,
+														(double)0.0f, (double)0.0f, u.yaw, u.pitch, u.on_ground);
+				send_all_except_user(teleport_entity, u, 0x1F, sv, users);
 			}
 		}
 	);
