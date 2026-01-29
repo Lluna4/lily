@@ -20,7 +20,6 @@ void process_item_registry(const std::string& path, std::unordered_map<int, std:
 	{
 		items.emplace(std::piecewise_construct, std::forward_as_tuple(item.second.get<json_object>()["protocol_id"].get<long>()), std::forward_as_tuple(item.first));
 	}
-
 	registry.close();
 }
 
@@ -39,6 +38,7 @@ std::map<std::string, block> process_block_registry(const std::string& path)
 	
 	for (auto &[key, val]: val.get<json_object>())
 	{
+		val.get<json_object>().erase("definition");
 		blocks.emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple(val));
 	}
 

@@ -372,7 +372,7 @@ void chunk::generate(std::vector<tree> &trees, siv::PerlinNoise &continentality_
 						if (y < y_max - 3)
 							set_block_direct(x_, y, z_, stone);
 						else if (y < y_max - 1)
-							auto ret = set_block(x_, y, z_, dirt);
+							auto ret = set_block(x_, y, z_, sand);
 						else if (y_max >= 64)
 							auto ret = set_block(x_, y, z_, sand);
 					

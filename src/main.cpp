@@ -17,6 +17,7 @@
 #include "chunk.h"
 #include "blocks.h"
 #include "packet.h"
+#include <malloc.h>
 
 std::map<int, user> users;
 std::vector<int> disconnected;
@@ -140,6 +141,7 @@ int main()
 	get_registry(w.biomes, dimensions);
 	w.get_chunk(0, 0, &spawn_y);
 	set_packets(packet_definitions_handshake, packet_definitions_status, packet_definitions_login, packet_definitions_config, packet_definitions_play);
+	malloc_trim(0);
 	while (true)
 	{
 		const auto before = clock::now();
