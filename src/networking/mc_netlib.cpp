@@ -119,7 +119,7 @@ void server::send_thread()
 			if (std::find(connections.begin(), connections.end(), pkt.fd) == connections.end())
 				continue;
 			ssize_t ret = send(pkt.fd, pkt.data.data, pkt.data.size, 0);
-			if (ret == 0 || ret == -1)
+			if (ret == 0 || ret == -1 || pkt.dc == true)
 			{
 				disconnect_client(pkt.fd);
 				break;
@@ -144,7 +144,7 @@ std::expected<bool, server_error> server::open_server(const char *ip, unsigned s
 		log(std::format("Failed to create socket {}", strerror(errno)), LOG_LEVEL::ERROR);
 		return std::unexpected(server_error::SOCKET_ERROR);
 	}
-
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 	sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(port)};
 	int ret = inet_pton(AF_INET, ip, &addr.sin_addr);
 

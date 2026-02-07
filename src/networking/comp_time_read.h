@@ -188,12 +188,19 @@ namespace netlib
         }
         packet (unsigned long s, unsigned long i, unsigned long header_s,buffer<char> buf, int f)
             :id(i), size(s),header_size(header_s) ,data(std::move(buf)), fd(f)
+        {
+            dc = false;
+        }
+
+        packet (unsigned long s, unsigned long i, unsigned long header_s,buffer<char> buf, int f, bool d)
+            :id(i), size(s),header_size(header_s) ,data(std::move(buf)), fd(f), dc(d)
         {}
         unsigned long id;
         unsigned long size;
         unsigned long header_size;
         buffer<char> data;
         int fd;
+        bool dc;
     };
     template<typename ...T>
     void read_packet(std::tuple<T...> &packet, netlib::packet &pkt)

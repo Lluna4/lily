@@ -199,7 +199,7 @@ void chunk::set_block_direct(int place_x, int place_y, int place_z, std::uint64_
 	}
 }
 
-void chunk::generate(std::vector<tree> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, siv::PerlinNoise &cave_noise, std::vector<std::string> &biomes,int *spawn_y)
+void chunk::generate(std::vector<tree> &trees, siv::PerlinNoise &continentality_noise, siv::PerlinNoise &main_noise, siv::PerlinNoise &bush_noise, siv::PerlinNoise &tree_noise, siv::PerlinNoise &temperature, siv::PerlinNoise &cave_noise, std::vector<std::string> &biomes, int *spawn_y)
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
@@ -414,7 +414,7 @@ void chunk::generate(std::vector<tree> &trees, siv::PerlinNoise &continentality_
 }
 
 
-chunk & world::get_chunk(int x, int z)
+chunk & world::get_chunk(long x, long z)
 {
 	auto ret = chunks.find(std::make_pair(x, z));
 	if (ret == chunks.end())
@@ -426,7 +426,7 @@ chunk & world::get_chunk(int x, int z)
 	return ret->second;
 }
 
-chunk & world::get_chunk(int x, int z, int *spawn_y)
+chunk & world::get_chunk(long x, long z, int *spawn_y)
 {
 	auto ret = chunks.find(std::make_pair(x, z));
 	if (ret == chunks.end())
@@ -460,7 +460,7 @@ void world::generate_seeds()
 }
 
 
-std::expected<bool, chunk_error> world::set_block(int x, int y, int z, std::uint64_t b)
+std::expected<bool, chunk_error> world::set_block(long x, long y, long z, std::uint64_t b)
 {
 	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
 	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), b);
@@ -472,7 +472,7 @@ std::expected<bool, chunk_error> world::set_block(int x, int y, int z, std::uint
 	return true;
 }
 
-void world::set_block_direct(int x, int y, int z, std::uint64_t b)
+void world::set_block_direct(long x, long y, long z, std::uint64_t b)
 {
 	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
 	auto ret = c.set_block(rem_euclid(x, 16), y, rem_euclid(z, 16), b);
@@ -695,7 +695,7 @@ std::uint64_t world::get_block(std::string block, std::map<std::string, json_val
 	return def;
 }
 
-std::uint64_t world::get_block(int x, int y, int z)
+std::uint64_t world::get_block(long x, long y, long z)
 {
 	chunk &c = get_chunk(floor((float)x/16.0f), floor((float)z/16.0f));
 	return c.get_block_id(rem_euclid(x, 16), y, rem_euclid(z, 16));

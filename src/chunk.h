@@ -174,7 +174,7 @@ struct chunk
 
 struct world
 {
-	std::map<std::pair<int, int>, chunk> chunks;
+	std::map<std::pair<long, long>, chunk> chunks;
 	std::vector<tree> trees_to_build;
 	std::vector<std::string> biomes;
 	siv::PerlinNoise::seed_type continentality_seed;
@@ -191,15 +191,15 @@ struct world
 	siv::PerlinNoise cave_noise;
 
 	void set_blocks(std::map<std::string, block> blocks);
-	chunk &get_chunk(int x, int z);
-	chunk &get_chunk(int x, int z, int *spawn_y);
+	chunk &get_chunk(long x, long z);
+	chunk &get_chunk(long x, long z, int *spawn_y);
 	void generate_seeds();
-	std::expected<bool, chunk_error> set_block(int x, int y, int z, std::uint64_t b);
-	void set_block_direct(int x, int y, int z, std::uint64_t b);
+	std::expected<bool, chunk_error> set_block(long x, long y, long z, std::uint64_t b);
+	void set_block_direct(long x, long y, long z, std::uint64_t b);
 	void build_trees();
 	json_value get_block_properties(std::string block);
 	std::uint64_t get_block(std::string block, std::map<std::string, json_value> properties);
-	std::uint64_t get_block(int x, int y, int z);
+	std::uint64_t get_block(long x, long y, long z);
 	bool is_id_block(std::uint64_t id, std::vector<std::string>);
 };
 

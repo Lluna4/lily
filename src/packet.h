@@ -16,6 +16,21 @@ world w;
 std::unordered_map<int, std::string> items;
 std::vector<std::string> dimensions;
 
+std::vector<std::string> split_str(std::string str, char delim)
+{
+	std::vector<std::string> ret;
+	size_t pos = 0;
+	while ((pos = str.find(delim)) != std::string::npos)
+	{
+		std::string token = str.substr(0, pos);
+		ret.push_back(token);
+		str.erase(0, pos + 1);
+	}
+	ret.push_back(str);
+
+	return ret;
+}
+
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv, std::map<int, user> &users)
 {
@@ -197,6 +212,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 				sv.disconnect_client(fd);
 				u.state = STATE::DISCONNECTED;
 				disconnected.push_back(fd);
+				log("Protocol version mismatch!", LOG_LEVEL::WARNING);
 				return;
 			}
 			if (intent.num == 1)
@@ -237,9 +253,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 			log("Ping!", LOG_LEVEL::NORMAL);
 			user &u = users.find(fd)->second;
 			auto pong = std::make_tuple(timestamp); 
-			sv.send_packet(pong, fd, 0x01);
-			u.state = STATE::DISCONNECTED;
-			disconnected.push_back(fd);
+			sv.send_packet_dc(pong, fd, 0x01);
 		}
 	);
 
@@ -305,12 +319,15 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
                                         (std::string)"minecraft:overworld", (long)128612, (unsigned char)1,
                                         (char)-1, false, false, false, minecraft::varint(0), minecraft::varint(64),
                                         false);
-            auto commands = std::make_tuple(minecraft::varint(4),
-                            (char)0x00, minecraft::varint(3), minecraft::varint(1), minecraft::varint(2), minecraft::varint(3),
+            auto commands = std::make_tuple(minecraft::varint(7),
+                            (char)0x00, minecraft::varint(6), minecraft::varint(1), minecraft::varint(2), minecraft::varint(3),minecraft::varint(4), minecraft::varint(5), minecraft::varint(6),
                             (char)0x01, minecraft::varint(1), minecraft::varint(2), std::string("pronouns"),
                             (char)0x02, minecraft::varint(0), std::string("pronouns"), minecraft::varint(5), minecraft::varint(2),
-							(char)0x01, minecraft::varint(0), std::string("tp"),
-                            minecraft::varint(0));
+							(char)0x01, minecraft::varint(1), minecraft::varint(4), std::string("tp"),
+							(char)0x02, minecraft::varint(1), minecraft::varint(5), std::string("x"), minecraft::varint(4), (char)0x0,
+                            (char)0x02, minecraft::varint(1), minecraft::varint(6), std::string("y"), minecraft::varint(4), (char)0x0,
+							(char)0x02, minecraft::varint(0), std::string("z"), minecraft::varint(4), (char)0x0,
+							minecraft::varint(0));
             sv.send_packet(commands, fd, 0x10);
             u.y = spawn_y;
             sv.send_packet(login, fd, 0x2B);
@@ -341,8 +358,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
                     sv.send_packet(spawn_entity_user, fd, 0x01);
                 }
             }
-
-            auto set_effect = std::make_tuple(minecraft::varint(fd), minecraft::varint(15), minecraft::varint(1),
+			auto set_effect = std::make_tuple(minecraft::varint(fd), minecraft::varint(15), minecraft::varint(1),
                                             minecraft::varint(99999999), (char)0x04);
             sv.send_packet(set_effect, fd, 0x7D);
             auto game_event = std::make_tuple((unsigned char)13, 0.0f);
@@ -399,8 +415,15 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 			}
 
 			if (comm.starts_with("tp"))
-			{	
-				u.x += 20;
+			{
+				std::vector<std::string> tokens = split_str(comm, ' ');
+				u.x = std::atol(tokens[1].c_str());
+				u.y = std::atol(tokens[2].c_str());
+				u.z = std::atol(tokens[3].c_str());
+
+				long chunkX = (long)std::floor(u.x / 16.0);
+    			long chunkZ = (long)std::floor(u.z / 16.0);
+
 				auto sync_pos = std::make_tuple(minecraft::varint(1), u.x, u.y, u.z, (double)0.0f, (double)0.0f,
                                             (double)0.0f, u.yaw, u.pitch, (int)0);
             	sv.send_packet(sync_pos, fd, 0x41);
@@ -408,6 +431,28 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 				auto teleport_entity = std::make_tuple(minecraft::varint(fd), u.x, u.y, u.z, (double)0.0f,
 														(double)0.0f, (double)0.0f, u.yaw, u.pitch, u.on_ground);
 				send_all_except_user(teleport_entity, u, 0x1F, sv, users);
+				
+				auto set_center_chunk = std::make_tuple(minecraft::varint(chunkX), minecraft::varint(chunkZ));
+            	sv.send_packet(set_center_chunk, fd, 0x57);
+				for (long y = (chunkZ - u.view_distance) - 2; y < (chunkZ + u.view_distance) + 2; y++)
+				{
+					for (long x = (chunkX - u.view_distance) - 2; x < (chunkX + u.view_distance) + 2; x++)
+					{
+						chunk &c = w.get_chunk(x, y);
+					}
+				}
+				w.build_trees();
+				for (long y = (chunkZ - u.view_distance) - 2; y < (chunkZ + u.view_distance) + 2; y++)
+				{
+					for (long x = (chunkX - u.view_distance) - 2; x < (chunkX + u.view_distance) + 2; x++)
+					{
+						chunk &c = w.get_chunk(x, y);
+						auto chunk_data = std::make_tuple((int)x, (int)y, minecraft::varint(0), std::ref(c), minecraft::varint(0),
+									minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
+									minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
+						sv.send_packet(chunk_data, fd, 0x27);
+					}
+				}
 			}
 		}
 	);

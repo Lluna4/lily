@@ -6,6 +6,7 @@
 #include <mutex>
 #include <format>
 #include <tuple>
+#include <fcntl.h>
 #include <string>
 #include <arpa/inet.h>
 #include <cstring>
@@ -97,6 +98,28 @@ class server
 
 			std::unique_lock lock(send_mut);
 			send_packets.emplace_back(id, header.size, 0, std::move(header), send_fd);
+			lock.unlock();
+			notify_send.notify_all();
+		}
+
+		template<typename ...T>
+		void send_packet_dc(std::tuple<T...> packet, int send_fd, int id)
+		{
+			buffer<char> buf;
+			constexpr std::size_t size = std::tuple_size_v<decltype(packet)>;
+			write_comp_pkt(size, buf, packet);
+
+			buffer<char> dummy;
+			dummy.allocate(5);
+			size_t id_size = minecraft::write_varint(dummy.data, id);
+			buffer<char> header;
+			header.allocate(10); //the max size for 2 varints
+			header.size += minecraft::write_varint(header.data, buf.size + id_size);
+			header.size += minecraft::write_varint(&header.data[header.size], id);
+			header.write(buf.data, buf.size);
+
+			std::unique_lock lock(send_mut);
+			send_packets.emplace_back(id, header.size, 0, std::move(header), send_fd, true);
 			lock.unlock();
 			notify_send.notify_all();
 		}
