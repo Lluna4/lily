@@ -110,7 +110,7 @@ void server::send_thread()
 	while (threads == true)
 	{
 		std::unique_lock lock(send_mut);
-		notify_send.wait_for(lock, std::chrono::milliseconds(10));
+		notify_send.wait_for(lock, std::chrono::milliseconds(5));
 		std::vector<netlib::packet> s_packets = std::move(send_packets);
 		send_packets.clear();
 		lock.unlock();
@@ -144,7 +144,6 @@ std::expected<bool, server_error> server::open_server(const char *ip, unsigned s
 		log(std::format("Failed to create socket {}", strerror(errno)), LOG_LEVEL::ERROR);
 		return std::unexpected(server_error::SOCKET_ERROR);
 	}
-	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 	sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(port)};
 	int ret = inet_pton(AF_INET, ip, &addr.sin_addr);
 

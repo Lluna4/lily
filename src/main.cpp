@@ -128,7 +128,7 @@ int main()
 	using ms = std::chrono::duration<double, std::milli>;
 	if(!create_log_file())
 		log("Creating log file failed", LOG_LEVEL::WARNING);
-	auto ret = sv.open_server("0.0.0.0", 25565);
+	auto ret = sv.open_server("0.0.0.0", 25567);
 	if (!ret)
 	{
 		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);
