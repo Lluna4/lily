@@ -18,6 +18,7 @@ add_executable(lily src/main.cpp
         src/chat.cpp
         src/log.cpp
         src/blocks.cpp
+        src/chunk_send.cpp
 )
 
 target_link_libraries(lily PRIVATE OpenSSL::Crypto Threads::Threads)

@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <format>
 #include <memory>
+#include <mutex>
 #include <print>
 #include <chrono>
 #include <map>
@@ -17,6 +18,7 @@
 #include "chunk.h"
 #include "blocks.h"
 #include "packet.h"
+#include "chunk_send.h"
 #include <malloc.h>
 
 std::map<int, user> users;
@@ -128,12 +130,14 @@ int main()
 	using ms = std::chrono::duration<double, std::milli>;
 	if(!create_log_file())
 		log("Creating log file failed", LOG_LEVEL::WARNING);
-	auto ret = sv.open_server("0.0.0.0", 25567);
+	auto ret = sv.open_server("0.0.0.0", 25565);
 	if (!ret)
 	{
 		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);
 		return -1;
 	}
+	std::thread world_th(world_thread, std::ref(sv), std::ref(w));
+	world_th.detach();
 	process_item_registry("../generated/reports/registries.json", items);
 	w.set_blocks(std::move(process_block_registry("../generated/reports/blocks.json")));
 	log("Added block registry", LOG_LEVEL::NORMAL);
@@ -170,7 +174,7 @@ int main()
 		}
 		update_keep_alive(sv);
 		const ms duration = clock::now() - before;
-		//log(std::format("MSPT {}ms", duration.count()), LOG_LEVEL::NORMAL);
+		log(std::format("MSPT {}ms", duration.count()), LOG_LEVEL::NORMAL);
 		if (duration.count() <= 50)
 			std::this_thread::sleep_for(std::chrono::milliseconds(50) - duration);
 	}

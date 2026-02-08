@@ -9,6 +9,7 @@
 #include "log.h"
 #include "registry.h"
 #include "chat.h"
+#include "chunk_send.h"
 
 int chat_id = 0;
 int spawn_y = 64;
@@ -113,26 +114,15 @@ void stream_world(user &u, server &sv)
 
 		if (u.chunk_x < u.prev_chunk_x)
 			chunk_start_x = u.chunk_x - u.view_distance;
-		
+		std::vector<std::pair<int, int>> positions;
 		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
 		{
 			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
 			{
-				chunk &c = w.get_chunk(x, z);
+				positions.push_back(std::make_pair(x, z));
 			}
 		}
-		w.build_trees();
-		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
-		{
-			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
-			{
-				chunk &c = w.get_chunk(x, z);
-				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
-							minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
-							minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-				sv.send_packet(chunk_data, u.fd, 0x27);
-			}
-		}
+		send_chunks(u.fd, positions);
 		//send_system_chat("Moved chunks in x", users, sv);
 	}
 	if (u.chunk_z != u.prev_chunk_z)
@@ -142,25 +132,15 @@ void stream_world(user &u, server &sv)
 		if (u.chunk_z < u.prev_chunk_z)
 			chunk_start_z = u.chunk_z - u.view_distance;
 		
+		std::vector<std::pair<int, int>> positions;
 		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
 		{
 			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
 			{
-				chunk &c = w.get_chunk(x, z);
+				positions.push_back(std::make_pair(x, z));
 			}
 		}
-		w.build_trees();
-		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
-		{
-			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
-			{
-				chunk &c = w.get_chunk(x, z);
-				auto chunk_data = std::make_tuple(x, z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
-							minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
-							minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-				sv.send_packet(chunk_data, u.fd, 0x27);
-			}
-		}
+		send_chunks(u.fd, positions);
 		//send_system_chat("Moved chunks in z", users, sv);
 	}
 
@@ -365,26 +345,15 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
             sv.send_packet(game_event, fd, 0x22);
             auto set_center_chunk = std::make_tuple(minecraft::varint(0), minecraft::varint(0));
             sv.send_packet(set_center_chunk, fd, 0x57);
+			std::vector<std::pair<int, int>> positions;
             for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
             {
                 for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
                 {
-                    chunk &c = w.get_chunk(x, y);
+                    positions.push_back(std::make_pair(x, y));
                 }
             }
-            w.build_trees();
-            for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
-            {
-                for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
-                {
-                    chunk &c = w.get_chunk(x, y);
-                    auto chunk_data = std::make_tuple(x, y, minecraft::varint(0), std::ref(c), minecraft::varint(0),
-                                minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
-                                minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-                    sv.send_packet(chunk_data, fd, 0x27);
-                }
-            }
-
+			send_chunks(u.fd, positions);
             u.state = STATE::PLAY;
             send_system_chat(std::format("{} connected", u.name), users, sv);
 		}
@@ -434,25 +403,15 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 				
 				auto set_center_chunk = std::make_tuple(minecraft::varint(chunkX), minecraft::varint(chunkZ));
             	sv.send_packet(set_center_chunk, fd, 0x57);
+				std::vector<std::pair<int, int>> positions;
 				for (long y = (chunkZ - u.view_distance) - 2; y < (chunkZ + u.view_distance) + 2; y++)
 				{
 					for (long x = (chunkX - u.view_distance) - 2; x < (chunkX + u.view_distance) + 2; x++)
 					{
-						chunk &c = w.get_chunk(x, y);
+						positions.push_back(std::make_pair(x, y));
 					}
 				}
-				w.build_trees();
-				for (long y = (chunkZ - u.view_distance) - 2; y < (chunkZ + u.view_distance) + 2; y++)
-				{
-					for (long x = (chunkX - u.view_distance) - 2; x < (chunkX + u.view_distance) + 2; x++)
-					{
-						chunk &c = w.get_chunk(x, y);
-						auto chunk_data = std::make_tuple((int)x, (int)y, minecraft::varint(0), std::ref(c), minecraft::varint(0),
-									minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
-									minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-						sv.send_packet(chunk_data, fd, 0x27);
-					}
-				}
+				send_chunks(u.fd, positions);
 			}
 		}
 	);
