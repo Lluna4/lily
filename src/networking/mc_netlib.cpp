@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 std::unordered_map<int, std::coroutine_handle<>> clients_to_read;
+std::unordered_map<int, std::coroutine_handle<>> clients_to_send;
 
 struct await_socket
 {
@@ -37,6 +38,37 @@ struct read_return
 	std::coroutine_handle<promise_type> handle;
 };
 
+struct await_socket_send
+{
+	int fd;
+
+	bool await_ready() { return false;};
+	void await_suspend(std::coroutine_handle<> h)
+	{
+		clients_to_send.insert({fd, h});
+	}
+	void await_resume() {};
+};
+
+struct send_return
+{
+	struct promise_type 
+	{
+        send_return get_return_object() 
+		{ 
+            return send_return{std::coroutine_handle<promise_type>::from_promise(*this)};
+        }
+
+        auto initial_suspend() {return std::suspend_never{};}
+        auto final_suspend() noexcept {return std::suspend_never{};}
+
+        void unhandled_exception() {std::runtime_error("Send failed");}
+        void return_void() {}
+    };
+
+	std::coroutine_handle<promise_type> handle;
+};
+
 read_return read_coroutine(int fd, std::vector<netlib::packet> &packets, std::mutex &mut, std::function<void(int)> disconnect_client)
 {
 	netlib::packet dummy_pkt(0);
@@ -62,7 +94,11 @@ read_return read_coroutine(int fd, std::vector<netlib::packet> &packets, std::mu
 	{
 		co_await await_socket(fd);
 		int r = recv(fd, &dummy_pkt.data.data[already_read], total_to_read - already_read, 0);
-		if (r == -1 || r == 0)
+		if (ret == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+		{
+			continue;
+		}
+		else if (r == -1 || r == 0)
 		{
 			disconnect_client(fd);
 			cont = true;
@@ -80,6 +116,26 @@ read_return read_coroutine(int fd, std::vector<netlib::packet> &packets, std::mu
 	std::lock_guard lock(mut);
 	packets.emplace_back(std::get<0>(head).num, std::get<1>(head).num, header_size, std::move(dummy_pkt.data), fd);
 	
+	co_return;
+}
+
+send_return send_coroutine(int fd, netlib::packet pkt, std::function<void(int)> disconnect_client)
+{
+	int already_read = 0;
+	while (already_read < pkt.data.size)
+	{
+		ssize_t ret = send(pkt.fd, &pkt.data.data[already_read], pkt.data.size - already_read, 0);
+		if (ret == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+		{
+			co_await await_socket_send(fd);
+		}
+		else if (ret == 0 || ret == -1 || pkt.dc == true)
+		{
+			disconnect_client(pkt.fd);
+			co_return;
+		}
+		already_read += ret;
+	}
 	co_return;
 }
 
@@ -131,7 +187,16 @@ void server::recv_thread()
 			#elif defined(__linux__)
 			int current_fd = events[i].data.fd;
 			#endif
-
+			if (events[i].events & EPOLLOUT)
+			{
+				if (clients_to_send.find(current_fd) != clients_to_send.end())
+				{
+					auto handle = clients_to_send.find(current_fd)->second;
+					clients_to_send.erase(current_fd);
+					handle.resume();
+					continue;
+				}
+			}
 			if (current_fd == fd)
 			{
 				int new_client = accept(fd, nullptr, nullptr);
@@ -142,7 +207,6 @@ void server::recv_thread()
 				log("A client connected!", LOG_LEVEL::NORMAL);
 				continue;
 			}
-			
 			if (clients_to_read.find(current_fd) != clients_to_read.end())
 			{
 				auto handle = clients_to_read.find(current_fd)->second;
@@ -174,13 +238,11 @@ void server::send_thread()
 		{
 			if (std::find(connections.begin(), connections.end(), pkt.fd) == connections.end())
 				continue;
-			ssize_t ret = send(pkt.fd, pkt.data.data, pkt.data.size, 0);
-			if (ret == 0 || ret == -1 || pkt.dc == true)
+			std::function<void(int)> func = [this](int fd)
 			{
-				disconnect_client(pkt.fd);
-				break;
-			}
-			//log(std::format("Sent {}B", ret), LOG_LEVEL::NORMAL);
+				disconnect_client(fd);
+			};
+			send_coroutine(pkt.fd, std::move(pkt), func);
 		}
 		s_packets.clear();
 	}
@@ -195,6 +257,7 @@ void server::clear_packets()
 std::expected<bool, server_error> server::open_server(const char *ip, unsigned short port)
 {
 	fd = socket(AF_INET, SOCK_STREAM, 0);
+	fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
 	if (fd == -1)
 	{
 		log(std::format("Failed to create socket {}", strerror(errno)), LOG_LEVEL::ERROR);

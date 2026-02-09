@@ -1,11 +1,12 @@
 #include "epoll_utils.h"
+#include <sys/epoll.h>
 
 #if defined(__linux__)
 int add_to_epoll(int epfd, int fd)
 {
 	struct epoll_event epoll_ev = {0};
 	epoll_ev.data.fd = fd;
-	epoll_ev.events = EPOLLIN;
+	epoll_ev.events = EPOLLIN | EPOLLOUT;
 	return epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &epoll_ev);
 }
 #elif defined (__FreeBSD__) || defined(__APPLE__)
