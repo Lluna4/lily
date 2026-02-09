@@ -187,7 +187,11 @@ void server::recv_thread()
 			#elif defined(__linux__)
 			int current_fd = events[i].data.fd;
 			#endif
+			#if defined(__APPLE__) || defined(__FreeBSD__)
+			if (events[i].fflags & EVFILT_WRITE)
+			#elif defined(__linux__)
 			if (events[i].events & EPOLLOUT)
+			#endif
 			{
 				if (clients_to_send.find(current_fd) != clients_to_send.end())
 				{

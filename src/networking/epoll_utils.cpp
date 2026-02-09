@@ -1,5 +1,4 @@
 #include "epoll_utils.h"
-#include <sys/epoll.h>
 
 #if defined(__linux__)
 int add_to_epoll(int epfd, int fd)
@@ -13,7 +12,7 @@ int add_to_epoll(int epfd, int fd)
 int add_to_epoll(int epfd, int fd)
 {
 	struct kevent ev;
-	EV_SET(&ev, fd, EVFILT_READ, EV_ADD, 0, 0, 0);
+	EV_SET(&ev, fd, EVFILT_READ | EVFILT_WRITE, EV_ADD, 0, 0, 0);
 	return kevent(epfd, &ev, 1, NULL, 0, NULL);
 }
 #endif
@@ -27,7 +26,7 @@ int remove_from_epoll(int epfd, int fd)
 int remove_from_epoll(int epfd, int fd)
 {
 	struct kevent ev;
-	EV_SET(&ev, fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
+	EV_SET(&ev, fd, EVFILT_READ | EVFILT_WRITE, EV_DELETE, 0, 0, 0);
 	return kevent(epfd, &ev, 1, NULL, 0, NULL);
 }
 #endif
