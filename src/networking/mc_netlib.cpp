@@ -1,4 +1,87 @@
 #include "mc_netlib.h"
+#include "comp_time_read.h"
+#include <cstddef>
+#include <stdexcept>
+#include <unordered_map>
+
+std::unordered_map<int, std::coroutine_handle<>> clients_to_read;
+
+struct await_socket
+{
+	int fd;
+
+	bool await_ready() { return false;};
+	void await_suspend(std::coroutine_handle<> h)
+	{
+		clients_to_read.insert({fd, h});
+	}
+	void await_resume() {};
+};
+
+struct read_return
+{
+	struct promise_type 
+	{
+        read_return get_return_object() 
+		{ 
+            return read_return{std::coroutine_handle<promise_type>::from_promise(*this)};
+        }
+
+        auto initial_suspend() {return std::suspend_never{};}
+        auto final_suspend() noexcept {return std::suspend_never{};}
+
+        void unhandled_exception() {std::runtime_error("Read failed");}
+        void return_void() {}
+    };
+
+	std::coroutine_handle<promise_type> handle;
+};
+
+read_return read_coroutine(int fd, std::vector<netlib::packet> &packets, std::mutex &mut, std::function<void(int)> disconnect_client)
+{
+	netlib::packet dummy_pkt(0);
+	dummy_pkt.data.allocate(5); //max for 1 varint
+	int ret = recv(fd, dummy_pkt.data.data, 5, MSG_PEEK);
+	if (ret == -1 || ret == 0)
+	{
+		disconnect_client(fd);
+		co_return;
+	}
+	minecraft::varint size = minecraft::read_varint(dummy_pkt.data.data);
+	if (size.num > 60000)
+	{
+		disconnect_client(fd);
+		co_return;
+	}
+	dummy_pkt.data.size = 0;
+	unsigned long already_read = 0;
+	unsigned long total_to_read = size.num + size.size;
+	dummy_pkt.data.allocate(total_to_read);
+	bool cont = false;
+	while (already_read < total_to_read)
+	{
+		co_await await_socket(fd);
+		int r = recv(fd, &dummy_pkt.data.data[already_read], total_to_read - already_read, 0);
+		if (r == -1 || r == 0)
+		{
+			disconnect_client(fd);
+			cont = true;
+			break;
+		}
+		already_read += r;
+	}
+	if (cont == true)
+		co_return;
+	dummy_pkt.data.size = total_to_read;
+	std::tuple<minecraft::varint, minecraft::varint> head;
+
+	netlib::read_packet(head, dummy_pkt);
+	unsigned long header_size = (std::get<0>(head).size + std::get<1>(head).size);
+	std::lock_guard lock(mut);
+	packets.emplace_back(std::get<0>(head).num, std::get<1>(head).num, header_size, std::move(dummy_pkt.data), fd);
+	
+	co_return;
+}
 
 void server::disconnect_client(int remove_fd)
 {
@@ -59,48 +142,21 @@ void server::recv_thread()
 				log("A client connected!", LOG_LEVEL::NORMAL);
 				continue;
 			}
-			if (std::find(connections.begin(), connections.end(), current_fd) == connections.end())
-				continue;
-			netlib::packet dummy_pkt(0);
-			dummy_pkt.data.allocate(5); //max for 1 varint
-			int ret = recv(current_fd, dummy_pkt.data.data, 5, MSG_PEEK);
-			if (ret == -1 || ret == 0)
+			
+			if (clients_to_read.find(current_fd) != clients_to_read.end())
 			{
-				disconnect_client(current_fd);
-				continue;
+				auto handle = clients_to_read.find(current_fd)->second;
+				clients_to_read.erase(current_fd);
+				handle.resume();
 			}
-			minecraft::varint size = minecraft::read_varint(dummy_pkt.data.data);
-			if (size.num > 60000)
+			else 
 			{
-				disconnect_client(current_fd);
-				continue;
-			}
-			dummy_pkt.data.size = 0;
-			unsigned long already_read = 0;
-			unsigned long total_to_read = size.num + size.size;
-			dummy_pkt.data.allocate(total_to_read);
-			bool cont = false;
-			while (already_read < total_to_read)
-			{
-				int r = recv(current_fd, &dummy_pkt.data.data[already_read], total_to_read - already_read, 0);
-				if (r == -1 || r == 0)
+				std::function<void(int)> func = [this](int fd)
 				{
-					disconnect_client(current_fd);
-					cont = true;
-					break;
-				}
-				already_read += r;
+					disconnect_client(fd);
+				};
+				read_coroutine(current_fd, packets, mut, func);
 			}
-			if (cont == true)
-				continue;
-			dummy_pkt.data.size = total_to_read;
-			//std::println("Read a packet with size {}", total_to_read);
-			std::tuple<minecraft::varint, minecraft::varint> head;
-
-			netlib::read_packet(head, dummy_pkt);
-			unsigned long header_size = (std::get<0>(head).size + std::get<1>(head).size);
-			std::lock_guard lock(mut);
-			packets.emplace_back(std::get<0>(head).num, std::get<1>(head).num, header_size, std::move(dummy_pkt.data), current_fd);
 		}
 	}
 }

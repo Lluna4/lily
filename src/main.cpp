@@ -19,7 +19,6 @@
 #include "blocks.h"
 #include "packet.h"
 #include "chunk_send.h"
-#include <malloc.h>
 
 std::map<int, user> users;
 std::vector<int> disconnected;
@@ -130,7 +129,7 @@ int main()
 	using ms = std::chrono::duration<double, std::milli>;
 	if(!create_log_file())
 		log("Creating log file failed", LOG_LEVEL::WARNING);
-	auto ret = sv.open_server("0.0.0.0", 25565);
+	auto ret = sv.open_server("0.0.0.0", 25567);
 	if (!ret)
 	{
 		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);
@@ -145,7 +144,6 @@ int main()
 	get_registry(w.biomes, dimensions);
 	w.get_chunk(0, 0, &spawn_y);
 	set_packets(packet_definitions_handshake, packet_definitions_status, packet_definitions_login, packet_definitions_config, packet_definitions_play);
-	malloc_trim(0);
 	while (true)
 	{
 		const auto before = clock::now();
@@ -174,7 +172,7 @@ int main()
 		}
 		update_keep_alive(sv);
 		const ms duration = clock::now() - before;
-		log(std::format("MSPT {}ms", duration.count()), LOG_LEVEL::NORMAL);
+		//log(std::format("MSPT {}ms", duration.count()), LOG_LEVEL::NORMAL);
 		if (duration.count() <= 50)
 			std::this_thread::sleep_for(std::chrono::milliseconds(50) - duration);
 	}

@@ -173,6 +173,13 @@ namespace netlib
 {
     struct packet
     {
+        packet()
+        {
+            size = 0;
+            header_size = 0;
+            fd = 0;
+            id = 0;
+        }
         packet(int i)
             :id(i)
         {
