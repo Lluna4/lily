@@ -19,6 +19,7 @@
 #include "blocks.h"
 #include "packet.h"
 #include "chunk_send.h"
+#include <csignal>
 
 std::map<int, user> users;
 std::vector<int> disconnected;
@@ -123,10 +124,19 @@ void update_keep_alive(server &sv)
 	}
 }
 
+
+void signal_handler(int sig)
+{
+	log("Got SIGPIPE", LOG_LEVEL::ERROR);
+}
+
 int main()
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
+
+	std::signal(SIGPIPE, signal_handler);
+
 	if(!create_log_file())
 		log("Creating log file failed", LOG_LEVEL::WARNING);
 	auto ret = sv.open_server("0.0.0.0", 25565);
