@@ -20,6 +20,7 @@
 #include "packet.h"
 #include "chunk_send.h"
 #include <csignal>
+#include "config.h"
 
 std::map<int, user> users;
 std::vector<int> disconnected;
@@ -134,12 +135,26 @@ int main()
 {
 	using clock = std::chrono::system_clock;
 	using ms = std::chrono::duration<double, std::milli>;
+	std::string ip = "0.0.0.0";
+	short port = 25565;
 
 	std::signal(SIGPIPE, signal_handler);
 
 	if(!create_log_file())
 		log("Creating log file failed", LOG_LEVEL::WARNING);
-	auto ret = sv.open_server("0.0.0.0", 25565);
+	auto conf = load_config("server.properties");
+	for (auto &[key, val]: conf)
+	{
+		if (key == "ip")
+			ip = val;
+		else if (key == "port" && isnum(val))
+			port = std::atoi(val.c_str());
+		else if (key == "motd")
+			motd = val;
+		else if (key == "img-path")
+			img_path = val;
+	}
+	auto ret = sv.open_server(ip.c_str(), port);
 	if (!ret)
 	{
 		log(std::format("Opening server failed: {}", ret.error()), LOG_LEVEL::ERROR);

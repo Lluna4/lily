@@ -136,6 +136,7 @@ send_return send_coroutine(int fd, netlib::packet pkt, std::function<void(int)> 
 		}
 		already_read += ret;
 	}
+	//log(std::format("Sent {}B", already_read), LOG_LEVEL::NORMAL);
 	co_return;
 }
 

@@ -10,27 +10,84 @@
 #include "registry.h"
 #include "chat.h"
 #include "chunk_send.h"
+#include "split.h"
+#include "user.h"
 
 int chat_id = 0;
 int spawn_y = 64;
 world w;
 std::unordered_map<int, std::string> items;
 std::vector<std::string> dimensions;
+std::string motd = "Lily server!";
+std::string img_path = "ico.png";
 
-std::vector<std::string> split_str(std::string str, char delim)
+
+static std::vector<std::bitset<6>> proc_6bit(std::string hi)
 {
-	std::vector<std::string> ret;
-	size_t pos = 0;
-	while ((pos = str.find(delim)) != std::string::npos)
-	{
-		std::string token = str.substr(0, pos);
-		ret.push_back(token);
-		str.erase(0, pos + 1);
-	}
-	ret.push_back(str);
+    std::string bits;
+    std::vector<std::bitset<8>> vec;
+    std::vector<std::bitset<6>> vec2;
+    int index = 0;
+    std::string res;
+    for (int i = 0; i < hi.length(); i++)
+    {
+        vec.emplace_back(hi[i]);
+    }
+    for (int i = 0; i < vec.size(); i++)
+        bits.append(vec[i].to_string());
 
+    while(index < bits.length())
+    {
+        if (index > 0 && index%6 == 0)
+        {
+            vec2.emplace_back(res);
+            res.clear();
+        }
+        res.push_back(bits[index]);
+        index++;
+    }
+	while (res.length() < 6)
+		res.push_back('0');
+	vec2.emplace_back(res);
+	
+	return vec2;
+}
+
+std::string base64_encode(std::string file_path)
+{
+	std::string ret;
+	if (std::filesystem::exists(file_path))
+	{
+		std::ifstream file(file_path, std::ios::binary);
+		std::string buf;
+		std::stringstream buffer;
+		buffer << file.rdbuf();
+		buf = buffer.str();
+		std::vector<std::bitset<6>>nums = proc_6bit(buf); //converts 8 bit nums into a 6 bit array
+
+		for (int i = 0; i < nums.size();i++)
+		{
+			unsigned long num = nums[i].to_ulong();
+			if (num < 26)
+				ret.push_back(num+ 'A');
+			else if (num >= 26 && num < 52)
+				ret.push_back((num - 26) + 'a');
+			else if(num >= 52 && num < 62)
+				ret.push_back((num - 52) + '0');
+			else if (num == 62)
+				ret.push_back('+');
+			else if (num == 63)
+				ret.push_back('/');
+		}
+		if (ret.length()%4 != 0)
+		{
+			while(ret.length()%4 != 0)
+				ret.push_back('=');
+		}
+	}
 	return ret;
 }
+
 
 template <typename ...T>
 void send_all_except_user(std::tuple<T...> packet, user &u, int id, server &sv, std::map<int, user> &users)
@@ -207,20 +264,28 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd)
 		{
 			user &u = users.find(fd)->second;
-			std::string json_response = "{\
-											\"version\": { \
+			int play_users = 0;
+			for (auto &u: users)
+			{
+				if (u.second.state == STATE::PLAY)
+					play_users++;
+			}
+			std::string base64 = std::format("data:image/png;base64,{}", base64_encode(img_path));
+			std::string json_response = std::format("{{\
+											\"version\": {{ \
 												\"name\": \"1.21.8\", \
 												\"protocol\": 772 \
-											}, \
-											\"players\": { \
+											}}, \
+											\"players\": {{ \
 												\"max\": 20, \
-												\"online\": 1 \
-											}, \
-											\"description\": { \
-												\"text\": \"Lily server!\" \
-											}, \
+												\"online\": {} \
+											}}, \
+											\"description\": {{ \
+												\"text\": \"{}\" \
+											}}, \
+											\"favicon\": \"{}\", \
 											\"enforcesSecureChat\": false \
-										}";
+											}}", play_users, motd, base64);
 			auto status_response = std::make_tuple(json_response);
 			sv.send_packet(status_response, fd, 0x00);
 		}
