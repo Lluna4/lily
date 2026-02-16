@@ -497,34 +497,34 @@ void world::build_trees()
 	std::uint64_t log_id = get_block("minecraft:oak_log", {});
 	std::uint64_t leaves_id = get_block("minecraft:oak_leaves", {});
 
-	for (auto &pos: trees_to_build)
+	for (int i = 0; i < trees_to_build.size();i++)
 	{
-		if (pos.type == TREE_TYPE::CACTUS)
+		if (trees_to_build[i].type == TREE_TYPE::CACTUS)
 		{
 			std::uint64_t cactus = get_block("minecraft:cactus", {});
 			std::random_device dev;
 			std::mt19937 rng(dev());
 			std::uniform_int_distribution<std::mt19937::result_type> dist(1, 4);
 			int cactus_size = dist(rng);
-			for (int y = pos.pos.y + 1; y < (pos.pos.y + cactus_size); y++)
+			for (int y = trees_to_build[i].pos.y + 1; y < (trees_to_build[i].pos.y + cactus_size); y++)
 			{
-				set_block(pos.pos.x, y, pos.pos.z, cactus);
+				set_block(trees_to_build[i].pos.x, y, trees_to_build[i].pos.z, cactus);
 			}
 			continue;
 		}
-		else if (pos.type == TREE_TYPE::TAIGA)
+		else if (trees_to_build[i].type == TREE_TYPE::TAIGA)
 		{
 			log_id = get_block("minecraft:spruce_log", {});
-			set_block_direct(pos.pos.x, pos.pos.y + 1, pos.pos.z, log_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 1, trees_to_build[i].pos.z, log_id);
 			
 			for (int z = -3; z <=3; z++)
 			{
 				for(int x = -3; x <= 3; x++)
 				{
 					if (x == 0 && z == 0)
-						set_block_direct(pos.pos.x + x, pos.pos.y + 2, pos.pos.z + z, log_id);
+						set_block_direct(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + 2, trees_to_build[i].pos.z + z, log_id);
 					else if (!(x == 3 && z == 3) && !(x == 3 && z == -3) && !(z == -3 && x == -3) && !(z == 3 && x == -3))
-						set_block_direct(pos.pos.x + x, pos.pos.y + 2, pos.pos.z + z, leaves_id);
+						set_block_direct(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + 2, trees_to_build[i].pos.z + z, leaves_id);
 				}
 			}
 			for (int z = -2; z <= 2; z++)
@@ -532,50 +532,50 @@ void world::build_trees()
 				for(int x = -2; x <= 2; x++)
 				{
 					if (x == 0 && z == 0)
-						set_block_direct(pos.pos.x + x, pos.pos.y + 3, pos.pos.z + z, log_id);
+						set_block_direct(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + 3, trees_to_build[i].pos.z + z, log_id);
 					else if (!(x == 2 && z == 2) && !(x == 2 && z == -2) && !(z == -2 && x == -2) && !(z == 2 && x == -2))
-						set_block_direct(pos.pos.x + x, pos.pos.y + 3, pos.pos.z + z, leaves_id);
+						set_block_direct(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + 3, trees_to_build[i].pos.z + z, leaves_id);
 				}
 			}
-			set_block_direct(pos.pos.x + 1, pos.pos.y + 4, pos.pos.z, leaves_id);
-			set_block_direct(pos.pos.x - 1, pos.pos.y + 4, pos.pos.z, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 4, pos.pos.z + 1, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 4, pos.pos.z - 1, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 4, pos.pos.z, log_id);
+			set_block_direct(trees_to_build[i].pos.x + 1, trees_to_build[i].pos.y + 4, trees_to_build[i].pos.z, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x - 1, trees_to_build[i].pos.y + 4, trees_to_build[i].pos.z, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 4, trees_to_build[i].pos.z + 1, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 4, trees_to_build[i].pos.z - 1, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 4, trees_to_build[i].pos.z, log_id);
 
 			for (int z = -2; z <= 2; z++)
 			{
 				for(int x = -2; x <= 2; x++)
 				{
 					if (x == 0 && z == 0)
-						set_block_direct(pos.pos.x + x, pos.pos.y + 5, pos.pos.z + z, log_id);
+						set_block_direct(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + 5, trees_to_build[i].pos.z + z, log_id);
 					else if (!(x == 2 && z == 2) && !(x == 2 && z == -2) && !(z == -2 && x == -2) && !(z == 2 && x == -2))
-						set_block_direct(pos.pos.x + x, pos.pos.y + 5, pos.pos.z + z, leaves_id);
+						set_block_direct(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + 5, trees_to_build[i].pos.z + z, leaves_id);
 				}
 			}
 
-			set_block_direct(pos.pos.x + 1, pos.pos.y + 6, pos.pos.z, leaves_id);
-			set_block_direct(pos.pos.x - 1, pos.pos.y + 6, pos.pos.z, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 6, pos.pos.z + 1, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 6, pos.pos.z - 1, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 6, pos.pos.z, log_id);
+			set_block_direct(trees_to_build[i].pos.x + 1, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x - 1, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z + 1, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z - 1, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z, log_id);
 
-			set_block_direct(pos.pos.x, pos.pos.y + 7, pos.pos.z, log_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 7, trees_to_build[i].pos.z, log_id);
 
-			set_block_direct(pos.pos.x + 1, pos.pos.y + 8, pos.pos.z, leaves_id);
-			set_block_direct(pos.pos.x - 1, pos.pos.y + 8, pos.pos.z, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 8, pos.pos.z + 1, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 8, pos.pos.z - 1, leaves_id);
-			set_block_direct(pos.pos.x, pos.pos.y + 8, pos.pos.z, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x + 1, trees_to_build[i].pos.y + 8, trees_to_build[i].pos.z, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x - 1, trees_to_build[i].pos.y + 8, trees_to_build[i].pos.z, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 8, trees_to_build[i].pos.z + 1, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 8, trees_to_build[i].pos.z - 1, leaves_id);
+			set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 8, trees_to_build[i].pos.z, leaves_id);
 			std::random_device dev;
 			std::mt19937 rng(dev());
 			std::uniform_int_distribution<std::mt19937::result_type> dist(0, 4);
 			if (dist(rng) >= 2)
-				set_block_direct(pos.pos.x, pos.pos.y + 9, pos.pos.z, leaves_id);
+				set_block_direct(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 9, trees_to_build[i].pos.z, leaves_id);
 			continue;
 		}
-		set_block(pos.pos.x, pos.pos.y + 1, pos.pos.z, log_id);
-		set_block(pos.pos.x, pos.pos.y + 2, pos.pos.z, log_id);
+		set_block(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 1, trees_to_build[i].pos.z, log_id);
+		set_block(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 2, trees_to_build[i].pos.z, log_id);
 		for (int y = 3; y < 5; y++)
 		{
 			for(int z = -3; z <= 3; z++)
@@ -583,9 +583,9 @@ void world::build_trees()
 				for(int x = -3; x <= 3; x++)
 				{
 					if (x == 0 && z == 0)
-						set_block(pos.pos.x + x, pos.pos.y + y, pos.pos.z + z, log_id);
+						set_block(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + y, trees_to_build[i].pos.z + z, log_id);
 					else
-						set_block(pos.pos.x + x, pos.pos.y + y, pos.pos.z + z, leaves_id);
+						set_block(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + y, trees_to_build[i].pos.z + z, leaves_id);
 				}
 			}
 		}
@@ -594,16 +594,16 @@ void world::build_trees()
 			for(int x = -2; x <= 2; x++)
 			{
 				if (x == 0 && z == 0)
-					set_block(pos.pos.x + x, pos.pos.y + 5, pos.pos.z + z, log_id);
+					set_block(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + 5, trees_to_build[i].pos.z + z, log_id);
 				else
-					set_block(pos.pos.x + x, pos.pos.y + 5, pos.pos.z + z, leaves_id);
+					set_block(trees_to_build[i].pos.x + x, trees_to_build[i].pos.y + 5, trees_to_build[i].pos.z + z, leaves_id);
 			}
 		}
-		set_block(pos.pos.x + 1, pos.pos.y + 6, pos.pos.z, leaves_id);
-		set_block(pos.pos.x - 1, pos.pos.y + 6, pos.pos.z, leaves_id);
-		set_block(pos.pos.x, pos.pos.y + 6, pos.pos.z, leaves_id);
-		set_block(pos.pos.x, pos.pos.y + 6, pos.pos.z + 1, leaves_id);
-		set_block(pos.pos.x, pos.pos.y + 6, pos.pos.z - 1, leaves_id);
+		set_block(trees_to_build[i].pos.x + 1, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z, leaves_id);
+		set_block(trees_to_build[i].pos.x - 1, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z, leaves_id);
+		set_block(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z, leaves_id);
+		set_block(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z + 1, leaves_id);
+		set_block(trees_to_build[i].pos.x, trees_to_build[i].pos.y + 6, trees_to_build[i].pos.z - 1, leaves_id);
 	}
 	trees_to_build.clear();
 	const ms duration = clock::now() - before;

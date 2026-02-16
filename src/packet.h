@@ -172,9 +172,9 @@ void stream_world(user &u, server &sv)
 		if (u.chunk_x < u.prev_chunk_x)
 			chunk_start_x = u.chunk_x - u.view_distance;
 		std::vector<std::pair<int, int>> positions;
-		for (int x = chunk_start_x; x < chunk_start_x + 4; x++)
+		for (int x = chunk_start_x - 1; x < chunk_start_x + 2; x++)
 		{
-			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 2; z++)
+			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 1; z++)
 			{
 				positions.push_back(std::make_pair(x, z));
 			}
@@ -190,9 +190,9 @@ void stream_world(user &u, server &sv)
 			chunk_start_z = u.chunk_z - u.view_distance;
 		
 		std::vector<std::pair<int, int>> positions;
-		for (int z = chunk_start_z; z < chunk_start_z + 4; z++)
+		for (int z = chunk_start_z - 1; z < chunk_start_z + 2; z++)
 		{
-			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 2; x++)
+			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 1; x++)
 			{
 				positions.push_back(std::make_pair(x, z));
 			}
@@ -387,7 +387,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
                                                 u.x, u.y, u.z, (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256),
                                                 (char)(u.yaw/360 * 256), minecraft::varint(0), (short)0,
                                                 (short)0, (short)0);
-            send_all_except_user_render_distance(spawn_entity, u, 0x01, sv, u.x, u.z, users);
+            send_all_except_user(spawn_entity, u, 0x01,sv,users);
             for (auto &us: users)
             {
                 if (us.second.fd != u.fd)

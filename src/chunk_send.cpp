@@ -27,18 +27,18 @@ void world_thread(server &sv, world &w)
             std::vector<chunk_request> chunks = std::move(chunks_to_send);
             chunks_to_send.clear();
             lock.unlock();
-            for (auto &ch: chunks)
+            for (int i = 0; i < chunks.size();i++)
             {
-                chunk &c = w.get_chunk(ch.x, ch.z);
+                chunk &c = w.get_chunk(chunks[i].x, chunks[i].z);
             }
             w.build_trees();
-            for (auto &ch: chunks)
+            for (int i = 0; i < chunks.size();i++)
             {
-                chunk &c = w.get_chunk(ch.x, ch.z);
-                auto chunk_data = std::make_tuple(ch.x, ch.z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
+                chunk &c = w.get_chunk(chunks[i].x, chunks[i].z);
+                auto chunk_data = std::make_tuple(chunks[i].x, chunks[i].z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
                             minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
                             minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
-                sv.send_packet(chunk_data, ch.fd, 0x27);
+                sv.send_packet(chunk_data, chunks[i].fd, 0x27);
             }
             chunks.clear();
         }
