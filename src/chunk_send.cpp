@@ -319,10 +319,10 @@ void world_thread(server &sv, world &w)
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
 
-                /*command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline2);
+                command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline2);
                 command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
-                command_buffer.dispatch(16, 16, 1);*/
+                command_buffer.dispatch(1, 1, 1);
                 
             }
             command_buffer.end();

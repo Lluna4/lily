@@ -3,7 +3,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
 #extension GL_EXT_shader_8bit_storage : require
 
-layout(local_size_x = 1, local_size_y = 1) in;
+layout(local_size_x = 16, local_size_y = 16) in;
 
 layout( push_constant ) uniform constants
 {
@@ -100,22 +100,19 @@ float getContinentalness(float noise)
 
 void main()
 {
-    const int p_x = p.x * 16 + int(gl_GlobalInvocationID.x);
-    const int p_z = p.z * 16 + int(gl_GlobalInvocationID.y);
-    const int x = int(gl_GlobalInvocationID.x);
-    const int z = int(gl_GlobalInvocationID.y);
+    const int x = p.x * 16 + int(gl_LocalInvocationID.x);
+    const int z = p.z * 16 + int(gl_LocalInvocationID.y);
 
-    float t_val = noise(vec2(p_x * 1.5f, p_z * 1.5f), p.seed);
 
-    if (t_val > 0.0f)
+    if (gl_LocalInvocationID.y == 6  && gl_LocalInvocationID.x == 6)
     {
-        float val = fbm(vec2(p_x * 0.003221649073064327, p_z * 0.00322164907306432), p.seed);
+        float val = fbm(vec2(x * 0.003221649073064327, z * 0.00322164907306432), p.seed);
         
         int y_max = int(getContinentalness(val)) + 64;
         if (y_max >= 128)
         {
-            dest[(((y_max) * 256) + (gl_GlobalInvocationID.y * 16) + gl_GlobalInvocationID.x) + (p.chunk * 98304)] = int8_t(7);
-            dest[(((y_max + 1) * 256) + (gl_GlobalInvocationID.y * 16) + gl_GlobalInvocationID.x) + (p.chunk * 98304)] = int8_t(7);
+            dest[(((y_max) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(7);
+            dest[(((y_max + 1) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(7);
 
             for (int y = 2; y <= 3; y++) 
             {
@@ -124,7 +121,7 @@ void main()
                     for (int x = -3; x <= 3; x++) 
                     {
                         int8_t id = (x == 0 && z == 0) ? int8_t(7) : int8_t(8);
-                        dest[(((y_max + y) * 256) + ((gl_GlobalInvocationID.y + z) * 16) + (gl_GlobalInvocationID.x + x)) + (p.chunk * 98304)] = id;
+                        dest[(((y_max + y) * 256) + ((gl_LocalInvocationID.y + z) * 16) + (gl_LocalInvocationID.x + x)) + (p.chunk * 98304)] = id;
                     }
                 }
             }
@@ -133,14 +130,14 @@ void main()
                 for (int x = -2; x <= 2; x++) 
                 {
                     int8_t id = (x == 0 && z == 0) ? int8_t(7) : int8_t(8);
-                    dest[(((y_max + 4) * 256) + ((gl_GlobalInvocationID.y + z) * 16) + (gl_GlobalInvocationID.x + x)) + (p.chunk * 98304)] = id;
+                    dest[(((y_max + 4) * 256) + ((gl_LocalInvocationID.y + z) * 16) + (gl_LocalInvocationID.x + x)) + (p.chunk * 98304)] = id;
                 }
             }
-            dest[(((y_max + 5) * 256) + (gl_GlobalInvocationID.y * 16) + (gl_GlobalInvocationID.x + 1)) + (p.chunk * 98304)] = int8_t(8);
-            dest[(((y_max + 5) * 256) + (gl_GlobalInvocationID.y * 16) + (gl_GlobalInvocationID.x - 1)) + (p.chunk * 98304)] = int8_t(8);
-            dest[(((y_max + 5) * 256) + (gl_GlobalInvocationID.y * 16) + (gl_GlobalInvocationID.x)) + (p.chunk * 98304)] = int8_t(8);
-            dest[(((y_max + 5) * 256) + ((gl_GlobalInvocationID.y + 1) * 16) + (gl_GlobalInvocationID.x)) + (p.chunk * 98304)] = int8_t(8);
-            dest[(((y_max + 5) * 256) + ((gl_GlobalInvocationID.y - 1) * 16) + (gl_GlobalInvocationID.x)) + (p.chunk * 98304)] = int8_t(8);
+            dest[(((y_max + 5) * 256) + (gl_LocalInvocationID.y * 16) + (gl_LocalInvocationID.x + 1)) + (p.chunk * 98304)] = int8_t(8);
+            dest[(((y_max + 5) * 256) + (gl_LocalInvocationID.y * 16) + (gl_LocalInvocationID.x - 1)) + (p.chunk * 98304)] = int8_t(8);
+            dest[(((y_max + 5) * 256) + (gl_LocalInvocationID.y * 16) + (gl_LocalInvocationID.x)) + (p.chunk * 98304)] = int8_t(8);
+            dest[(((y_max + 5) * 256) + ((gl_LocalInvocationID.y + 1) * 16) + (gl_LocalInvocationID.x)) + (p.chunk * 98304)] = int8_t(8);
+            dest[(((y_max + 5) * 256) + ((gl_LocalInvocationID.y - 1) * 16) + (gl_LocalInvocationID.x)) + (p.chunk * 98304)] = int8_t(8);
         }
     }
 }
