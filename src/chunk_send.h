@@ -2,6 +2,7 @@
 #include <vector>
 #include "networking/mc_netlib.h"
 #include "chunk.h"
+#include <vulkan/vulkan.hpp>
 
 struct chunk_request
 {

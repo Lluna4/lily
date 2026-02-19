@@ -157,8 +157,19 @@ struct chunk
 		{
 			section sec;
 			sec.blocks.push_back(0);
+			sec.blocks.resize(4096);
+			for (int x = 1; x < 4096; x++)
+				sec.blocks[x] = sec.blocks[0];
 			sec.palette.push_back(get_block("minecraft:air", {}));
-			sec.non_air_blocks = 0;
+			sec.palette.push_back(get_block("minecraft:stone", {}));
+			sec.palette.push_back(get_block("minecraft:water", {}));
+			sec.palette.push_back(get_block("minecraft:grass_block", {}));
+			sec.palette.push_back(get_block("minecraft:tall_grass", {}));
+			sec.palette.push_back(get_block("minecraft:tall_grass", {{"half", json_value("upper")}}));
+			sec.palette.push_back(get_block("minecraft:short_grass", {}));
+			sec.palette.push_back(get_block("minecraft:oak_log", {}));
+			sec.palette.push_back(get_block("minecraft:oak_leaves", {}));
+			sec.non_air_blocks = 4096;
 			sec.biome.resize(64);
 			sec.biome_palette.push_back(1);
 			sections.push_back(sec);

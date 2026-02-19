@@ -1,0 +1,122 @@
+#version 450
+
+#extension GL_EXT_shader_explicit_arithmetic_types_int8 : require
+#extension GL_EXT_shader_8bit_storage : require
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout( push_constant ) uniform constants
+{
+    int x;
+    int z;
+    int chunk;
+    float seed;
+} p;
+
+layout(std430, binding = 0) buffer lay1 { int8_t dest[]; };
+
+float random (in vec2 st, float seed) 
+{
+    float safe_seed = mod(seed, 10000.0);
+    
+    return fract(sin(dot(st.xy,
+                         vec2(12.9898,78.233)))*
+        (43758.5453123 + safe_seed));
+}
+
+// Based on Morgan McGuire @morgan3d
+// https://www.shadertoy.com/view/4dS3Wd
+float noise (in vec2 st, float seed)
+{
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+
+    // Four corners in 2D of a tile
+    float a = random(i, seed);
+    float b = random(i + vec2(1.0, 0.0), seed);
+    float c = random(i + vec2(0.0, 1.0), seed);
+    float d = random(i + vec2(1.0, 1.0), seed);
+
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    return mix(a, b, u.x) +
+            (c - a)* u.y * (1.0 - u.x) +
+            (d - b) * u.x * u.y;
+}
+
+#define OCTAVES 6
+float fbm (in vec2 st, float seed) {
+    // Initial values
+    float value = 0.0;
+    float amplitude = .5;
+    float frequency = 0.;
+    //
+    // Loop of octaves
+    for (int i = 0; i < OCTAVES; i++) 
+    {
+        value += amplitude * noise(st, seed);
+        st *= 2.;
+        amplitude *= .5;
+    }
+    return value;
+}
+
+float map(float value, float inMin, float inMax, float outMin, float outMax) 
+{
+    return outMin + (value - inMin) * (outMax - outMin) / (inMax - inMin);
+}
+
+float getContinentalness(float noise) 
+{
+    if (noise < -0.8f) 
+    { 
+        return map(noise, -1.0f, -0.8f, 10.0f, 40.0f);
+    } 
+    else if (noise < -0.5f) 
+    {
+        return map(noise, -0.8f, -0.5f, 40.0f, 45.0f);
+    } 
+    else if (noise < -0.3f) 
+    {
+        return map(noise, -0.5f, 0.0f, 45.0f, 64.0f);
+    } 
+    else if (noise < 0.0f)
+    {
+        return map(noise, 0.0f, 0.5f, 64.0f, 90.0f);
+    } 
+    else if (noise < 0.7f) 
+    {
+        return map(noise, 0.5f, 0.7f, 90.0f, 120.0f);
+    } 
+    else if (noise < 0.9f) 
+    {
+        return map(noise, 0.7f, 0.9f, 120.0f, 170.0f);
+    } 
+    else 
+    {
+        return map(noise, 0.9f, 1.01f, 170.0f, 250.0f);
+    }
+}
+
+void main()
+{
+    const int x = p.x * 16 + int(gl_LocalInvocationID.x);
+    const int z = p.z * 16 + int(gl_LocalInvocationID.y);
+
+    float val = fbm(vec2(x * 0.003221649073064327, z * 0.00322164907306432), p.seed);
+    
+    int y_max = int(getContinentalness(val)) + 64;
+
+   
+    if (y_max >= 128)
+    {
+        float bush_val = noise(vec2(x, z), p.seed);
+        if (bush_val > 0.91f)
+        {
+            dest[(((y_max) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(4);
+            dest[(((y_max + 1) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(5);
+        }
+        else if (bush_val > 0.8f)
+            dest[(((y_max) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(6);
+    }
+}

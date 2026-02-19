@@ -14,6 +14,8 @@ And also the memory consumption is pretty low, at 40 MB with 12 chunk radius spa
 
 For now you can place blocks in a randomly generated infinite world in creative, some blocks dont place properly yet like doors
 
+This is the gpu accelerated world genration branch of lily, it uses vulkan for gpu acceleration, world gen is not on par with the main version yet
+
 
 ## Building
 
