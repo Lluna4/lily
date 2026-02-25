@@ -172,7 +172,7 @@ inline void write_type<chunk &>(buffer<char> *v, chunk &value)
                 t.write(&tmp, sizeof(int64_t));
             }
         }
-        t.data[t.size] = 1;
+        t.data[t.size] = 2;
         t.size++;
         t.allocate(t.size + 5);
         t.size += minecraft::write_varint(&t.data[t.size], sec.biome_palette.size());
@@ -181,14 +181,13 @@ inline void write_type<chunk &>(buffer<char> *v, chunk &value)
             t.allocate(t.size + 5);
             t.size += minecraft::write_varint(&t.data[t.size], p);
         }
-        std::bitset<64> l;
-        for (int i = 0; i < 64; i++)
+        for (int i = 0; i < 2; i++)
         {
-            l[i] = sec.biome[i];
+            uint64_t tmp = 0;
+            memcpy(&tmp, &sec.biome.data()[i * 8], sizeof(int64_t));
+            tmp = htobe64(tmp);
+            t.write(&tmp, sizeof(uint64_t));
         }
-        uint64_t tmp = l.to_ulong();
-        tmp = htobe64((*(uint64_t *)&tmp));
-        t.write(&tmp, sizeof(uint64_t));
     }
     v->allocate(v->size + 5);
     v->size += minecraft::write_varint(&v->data[v->size], t.size);

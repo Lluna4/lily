@@ -150,7 +150,7 @@ enum class chunk_error
 
 struct chunk
 {
-	chunk(int x, int z)
+	chunk(int x, int z, std::vector<std::string> &biomes)
 		:x(x), z(z)
 	{
 		for (int i = 0; i < 24; i++)
@@ -169,9 +169,17 @@ struct chunk
 			sec.palette.push_back(get_block("minecraft:short_grass", {}));
 			sec.palette.push_back(get_block("minecraft:oak_log", {}));
 			sec.palette.push_back(get_block("minecraft:oak_leaves", {}));
+			sec.palette.push_back(get_block("minecraft:dirt", {}));
+			sec.palette.push_back(get_block("minecraft:sand", {}));
+			sec.palette.push_back(get_block("minecraft:grass_block", {{"snowy", json_value("true")}}));
+			sec.palette.push_back(get_block("minecraft:snow", {}));
+			sec.palette.push_back(get_block("minecraft:ice", {}));
 			sec.non_air_blocks = 4096;
-			sec.biome.resize(64);
-			sec.biome_palette.push_back(1);
+			sec.biome.resize(128);
+			sec.biome_palette.push_back(std::distance(biomes.begin(), std::find(biomes.begin(), biomes.end(), "plains")));
+			sec.biome_palette.push_back(std::distance(biomes.begin(), std::find(biomes.begin(), biomes.end(), "snowy_plains")));
+			sec.biome_palette.push_back(std::distance(biomes.begin(), std::find(biomes.begin(), biomes.end(), "desert")));
+			sec.biome_palette.push_back(std::distance(biomes.begin(), std::find(biomes.begin(), biomes.end(), "taiga")));
 			sections.push_back(sec);
 		}
 	}

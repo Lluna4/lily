@@ -419,7 +419,7 @@ chunk & world::get_chunk(long x, long z)
 	auto ret = chunks.find(std::make_pair(x, z));
 	if (ret == chunks.end())
 	{
-		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
+		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z, biomes)).first->second;
 		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, temperature, cave_noise, biomes);
 		return chunk;
 	}
@@ -431,7 +431,7 @@ chunk & world::get_chunk(long x, long z, int *spawn_y)
 	auto ret = chunks.find(std::make_pair(x, z));
 	if (ret == chunks.end())
 	{
-		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z)).first->second;
+		auto &chunk = chunks.emplace(std::piecewise_construct, std::forward_as_tuple(x, z), std::forward_as_tuple(x, z, biomes)).first->second;
 		chunk.generate(trees_to_build, continentality_noise, main_noise, bush_noise, tree_noise, temperature, cave_noise, biomes,spawn_y);
 		return chunk;
 	}

@@ -221,6 +221,9 @@ void world_thread(server &sv, world &w)
     std::string compiled_code3 = get_file_contents("../shaders/bush.spv");
 	vk::ShaderModuleCreateInfo shader_info3(vk::ShaderModuleCreateFlags(), compiled_code3.size(), reinterpret_cast<const uint32_t*>(compiled_code3.c_str()));
 	vk::ShaderModule shader_module3 = device.createShaderModule(shader_info3);
+    std::string compiled_code4 = get_file_contents("../shaders/biome.spv");
+	vk::ShaderModuleCreateInfo shader_info4(vk::ShaderModuleCreateFlags(), compiled_code4.size(), reinterpret_cast<const uint32_t*>(compiled_code4.c_str()));
+	vk::ShaderModule shader_module4 = device.createShaderModule(shader_info4);
 
 	while(thread == true)
 	{
@@ -247,12 +250,26 @@ void world_thread(server &sv, world &w)
             vk::DeviceMemory buffer_out_memory = buffer_out_ret.first;
             vk::Buffer buffer_out = buffer_out_ret.second;
 
+            
+            size_t size_biome = (16 * 24) * positions.size();
+            auto buffer_biome_out_ret_ret = create_buffer(device, physical_device, vk::BufferUsageFlagBits::eStorageBuffer, size_biome);
+            if (!buffer_biome_out_ret_ret)
+            {
+                std::println("{}", buffer_biome_out_ret_ret.error());
+                continue;
+            }
+
+            auto buffer_biome_out_ret = buffer_biome_out_ret_ret.value();
+            vk::DeviceMemory buffer_biome_out_memory = buffer_biome_out_ret.first;
+            vk::Buffer buffer_biome_out = buffer_biome_out_ret.second;
+
 
             const std::vector<vk::DescriptorSetLayoutBinding> descriptor_set_layout_binding = {
                 {0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute},
             };
             vk::DescriptorSetLayoutCreateInfo descriptor_layout_info(vk::DescriptorSetLayoutCreateFlags(), descriptor_set_layout_binding);
             vk::DescriptorSetLayout descriptor_set_layout = device.createDescriptorSetLayout(descriptor_layout_info);
+            std::vector<vk::DescriptorSetLayout> layouts(2, descriptor_set_layout);
 
             vk::PushConstantRange push_range(vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters));
 
@@ -272,11 +289,15 @@ void world_thread(server &sv, world &w)
             vk::ComputePipelineCreateInfo compute_pipeline_info3(vk::PipelineCreateFlags(), pipeline_shader_info3, pipeline_layout);
             vk::Pipeline pipeline3 = device.createComputePipeline(pipeline_cache, compute_pipeline_info3).value;
 
-            vk::DescriptorPoolSize descriptor_pool_size(vk::DescriptorType::eStorageBuffer, 1);
-            vk::DescriptorPoolCreateInfo descriptor_pool_info(vk::DescriptorPoolCreateFlags(), 1, descriptor_pool_size);
+            vk::PipelineShaderStageCreateInfo pipeline_shader_info4(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module4, "main");
+            vk::ComputePipelineCreateInfo compute_pipeline_info4(vk::PipelineCreateFlags(), pipeline_shader_info4, pipeline_layout);
+            vk::Pipeline pipeline4 = device.createComputePipeline(pipeline_cache, compute_pipeline_info4).value;
+
+            vk::DescriptorPoolSize descriptor_pool_size(vk::DescriptorType::eStorageBuffer, 2);
+            vk::DescriptorPoolCreateInfo descriptor_pool_info(vk::DescriptorPoolCreateFlags(), 2, descriptor_pool_size);
             vk::DescriptorPool descriptor_pool = device.createDescriptorPool(descriptor_pool_info);
 
-            vk::DescriptorSetAllocateInfo descriptor_alloc_info(descriptor_pool, 1, &descriptor_set_layout);
+            vk::DescriptorSetAllocateInfo descriptor_alloc_info(descriptor_pool, 2, layouts.data());
             std::vector<vk::DescriptorSet> descriptor_sets = device.allocateDescriptorSets(descriptor_alloc_info);
             vk::DescriptorBufferInfo buffer_out_info(buffer_out, 0, size);
             std::vector<vk::WriteDescriptorSet> write_descriptor_sets =
@@ -284,6 +305,13 @@ void world_thread(server &sv, world &w)
                 {descriptor_sets[0], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &buffer_out_info}
             };
             device.updateDescriptorSets(write_descriptor_sets, {});
+
+            vk::DescriptorBufferInfo buffer_biome_out_info(buffer_biome_out, 0, size_biome);
+            std::vector<vk::WriteDescriptorSet> write_descriptor_sets_biome =
+            {
+                {descriptor_sets[1], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &buffer_biome_out_info}
+            };
+            device.updateDescriptorSets(write_descriptor_sets_biome, {});
 
             vk::CommandPoolCreateInfo command_pool_info(vk::CommandPoolCreateFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer), queue_family_index);
             vk::CommandPool command_pool = device.createCommandPool(command_pool_info);
@@ -309,6 +337,11 @@ void world_thread(server &sv, world &w)
                 params.chunk = c;
                 params.seed = (float)continentality_seed;
                 
+                command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline4);
+                command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[1]}, {});
+                command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
+                command_buffer.dispatch(1, 1, 1);
+
                 command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
                 command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
@@ -337,9 +370,12 @@ void world_thread(server &sv, world &w)
             std::memcpy(data, data2, size);
             const ms duration2 = clock::now() - before2;
             log(std::format("Downloading took {}", duration2), LOG_LEVEL::NORMAL);
+            int8_t *data_biome2 = (int8_t *)device.mapMemory(buffer_biome_out_memory, 0, size_biome);
+            int8_t *data_biome = (int8_t *)malloc(size_biome);
+            std::memcpy(data_biome, data_biome2, size_biome);
             for (int i = 0; i < positions.size(); i++)
             {
-                chunk &c = ret.emplace_back(positions[i].x, positions[i].z);
+                chunk &c = ret.emplace_back(positions[i].x, positions[i].z, w.biomes);
                 for (int x = 0; x < c.sections.size(); x++)
                 {
                     int index = x * 4096 + (i * 98304);
@@ -370,6 +406,8 @@ void world_thread(server &sv, world &w)
                         c.sections[x].blocks.shrink_to_fit();
                         c.sections[x].blocks.push_back(equal_id);
                     }
+                    int index_biome = x * 16 + (i * 384);
+                    std::memcpy(c.sections[x].biome.data(), &data_biome[index_biome], 16);
                 }
             }
             for (int i = 0; i < ret.size();i++)
@@ -379,6 +417,7 @@ void world_thread(server &sv, world &w)
                             minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
                 sv.send_packet(chunk_data, positions[i].fd, 0x27);
             }
+
             free(data);
             device.unmapMemory(buffer_out_memory);
             device.destroyFence(fence);
