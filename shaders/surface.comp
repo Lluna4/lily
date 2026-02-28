@@ -95,11 +95,9 @@ float getContinentalness(float noise)
     } 
     else 
     {
-        // Covers 0.9f to 1.01f and anything above
         return map(noise, 0.9f, 1.01f, 170.0f, 250.0f);
     }
 }
-
 
 float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
@@ -150,39 +148,45 @@ void main()
     const int x = p.x * 16 + int(gl_LocalInvocationID.x);
     const int z = p.z * 16 + int(gl_LocalInvocationID.y);
 
-    float val = fbm(vec2(x * 0.003221649073064327, z * 0.00322164907306432), 6, p.seed);
+    float val = fbm(vec2(x * 0.003221649073064327, z * 0.00322164907306432), 6,p.seed);
     
     int y_max = int(getContinentalness(val)) + 64;
 
-    float val2 = fbm3(vec3(x * 0.041f, y_max * 0.05f, z * 0.041f), p.seed);
     float temp = fbm(vec2(float(x) * 0.0005221649073064327, float(z) * 0.000522164907306432),16, p.seed);
-    if (y_max >= 128 && val2 > 0.2)
+
+    int surface_block = 9;
+
+    if (temp < -0.3f)
+        surface_block = 11;
+    else if (temp < 0.3f)
+        surface_block = 3;
+    else
+        surface_block = 10;
+    for (int y = y_max - 3; y < y_max; y++)
     {
-        float bush_val = noise(vec2(x, z), p.seed);
-        if (temp < -0.3)
+        float val2 = fbm3(vec3(x * 0.041f, y * 0.05f, z * 0.041f), p.seed);
+        if (val2 > 0.2)
         {
-            if (bush_val > 0.95f)
+            if (y < y_max - 1)
+                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(9);
+            else if (y_max >= 128)
             {
-                dest[(((y_max) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(4);
-                dest[(((y_max + 1) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(5);
+                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(surface_block);
+                if (temp < -0.3f && dest[(((y + 1) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] == 0)
+                    dest[(((y + 1) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(12);
+                else if (temp < -0.3f)
+                    dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(3);
             }
-            else if (bush_val > 0.89f)
-                dest[(((y_max) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(6);
         }
-        else if (temp < 0.3)
+    }
+    if (y_max < 128)
+    {
+        for (int y = y_max - 1; y < 128; y++)
         {
-            if (bush_val > 0.91f)
-            {
-                dest[(((y_max) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(4);
-                dest[(((y_max + 1) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(5);
-            }
-            else if (bush_val > 0.8f)
-                dest[(((y_max) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(6);
-        }
-        else
-        {
-            if (bush_val > 0.93f)
-                dest[(((y_max) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(14);
+            if (temp < -0.3f && y == 127)
+                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(13);
+            else
+                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(2);
         }
     }
 }

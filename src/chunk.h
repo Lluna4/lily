@@ -174,6 +174,7 @@ struct chunk
 			sec.palette.push_back(get_block("minecraft:grass_block", {{"snowy", json_value("true")}}));
 			sec.palette.push_back(get_block("minecraft:snow", {}));
 			sec.palette.push_back(get_block("minecraft:ice", {}));
+			sec.palette.push_back(get_block("minecraft:dead_bush", {}));
 			sec.non_air_blocks = 4096;
 			sec.biome.resize(128);
 			sec.biome_palette.push_back(std::distance(biomes.begin(), std::find(biomes.begin(), biomes.end(), "plains")));

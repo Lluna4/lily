@@ -224,6 +224,10 @@ void world_thread(server &sv, world &w)
     std::string compiled_code4 = get_file_contents("../shaders/biome.spv");
 	vk::ShaderModuleCreateInfo shader_info4(vk::ShaderModuleCreateFlags(), compiled_code4.size(), reinterpret_cast<const uint32_t*>(compiled_code4.c_str()));
 	vk::ShaderModule shader_module4 = device.createShaderModule(shader_info4);
+    std::string compiled_code5 = get_file_contents("../shaders/surface.spv");
+	vk::ShaderModuleCreateInfo shader_info5(vk::ShaderModuleCreateFlags(), compiled_code5.size(), reinterpret_cast<const uint32_t*>(compiled_code5.c_str()));
+	vk::ShaderModule shader_module5 = device.createShaderModule(shader_info5);
+    
 
 	while(thread == true)
 	{
@@ -293,6 +297,10 @@ void world_thread(server &sv, world &w)
             vk::ComputePipelineCreateInfo compute_pipeline_info4(vk::PipelineCreateFlags(), pipeline_shader_info4, pipeline_layout);
             vk::Pipeline pipeline4 = device.createComputePipeline(pipeline_cache, compute_pipeline_info4).value;
 
+            vk::PipelineShaderStageCreateInfo pipeline_shader_info5(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module5, "main");
+            vk::ComputePipelineCreateInfo compute_pipeline_info5(vk::PipelineCreateFlags(), pipeline_shader_info5, pipeline_layout);
+            vk::Pipeline pipeline5 = device.createComputePipeline(pipeline_cache, compute_pipeline_info5).value;
+
             vk::DescriptorPoolSize descriptor_pool_size(vk::DescriptorType::eStorageBuffer, 2);
             vk::DescriptorPoolCreateInfo descriptor_pool_info(vk::DescriptorPoolCreateFlags(), 2, descriptor_pool_size);
             vk::DescriptorPool descriptor_pool = device.createDescriptorPool(descriptor_pool_info);
@@ -330,6 +338,7 @@ void world_thread(server &sv, world &w)
             command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
             command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
             parameters params;
+
             for (int c = 0; c < positions.size(); c++)
             {
                 params.x = positions[c].x;
@@ -341,16 +350,53 @@ void world_thread(server &sv, world &w)
                 command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[1]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
+            }
+
+            for (int c = 0; c < positions.size(); c++)
+            {
+                params.x = positions[c].x;
+                params.z = positions[c].z;
+                params.chunk = c;
+                params.seed = (float)continentality_seed;
+
+                command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline5);
+                command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
+                command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
+                command_buffer.dispatch(1, 1, 1);
+            }
+
+            for (int c = 0; c < positions.size(); c++)
+            {
+                params.x = positions[c].x;
+                params.z = positions[c].z;
+                params.chunk = c;
+                params.seed = (float)continentality_seed;
 
                 command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
                 command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
-                
+            }
+
+            for (int c = 0; c < positions.size(); c++)
+            {
+                params.x = positions[c].x;
+                params.z = positions[c].z;
+                params.chunk = c;
+                params.seed = (float)continentality_seed;
+
                 command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline3);
                 command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
+            }
+
+            for (int c = 0; c < positions.size(); c++)
+            {
+                params.x = positions[c].x;
+                params.z = positions[c].z;
+                params.chunk = c;
+                params.seed = (float)continentality_seed;
 
                 command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline2);
                 command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
@@ -363,16 +409,12 @@ void world_thread(server &sv, world &w)
             queue.submit({submit_info}, fence);
             auto res = device.waitForFences({fence}, true, -1);
             device.resetFences(fence);
-            int8_t *data2 = (int8_t *)device.mapMemory(buffer_out_memory, 0, size);
+            
+            int8_t *data = (int8_t *)device.mapMemory(buffer_out_memory, 0, size);
+            int8_t *data_biome = (int8_t *)device.mapMemory(buffer_biome_out_memory, 0, size_biome);
+            
             std::vector<chunk> ret;
             const auto before2 = clock::now();
-            int8_t *data = (int8_t *)malloc(size);
-            std::memcpy(data, data2, size);
-            const ms duration2 = clock::now() - before2;
-            log(std::format("Downloading took {}", duration2), LOG_LEVEL::NORMAL);
-            int8_t *data_biome2 = (int8_t *)device.mapMemory(buffer_biome_out_memory, 0, size_biome);
-            int8_t *data_biome = (int8_t *)malloc(size_biome);
-            std::memcpy(data_biome, data_biome2, size_biome);
             for (int i = 0; i < positions.size(); i++)
             {
                 chunk &c = ret.emplace_back(positions[i].x, positions[i].z, w.biomes);
@@ -380,36 +422,31 @@ void world_thread(server &sv, world &w)
                 {
                     int index = x * 4096 + (i * 98304);
                     std::memcpy(c.sections[x].blocks.data(), &data[index], 4096);
-                    bool equal = false;
-                    long equal_id = 0;
-                    for (long id_ = 0; id_ < c.sections[x].palette.size(); id_++)
+                    auto first_block = c.sections[x].blocks[0];
+                    bool equal = true;
+                    for (int b = 1; b < 4096; b++)
                     {
-                        bool eq = true;
-                        for (auto &block: c.sections[x].blocks)
+                        if (c.sections[x].blocks[b] != first_block)
                         {
-                            if (block != id_)
-                            {
-                                eq = false;
-                                break;
-                            }
-                        }
-                        if (eq == true)
-                        {
-                            equal_id = id_;
-                            equal = true;
+                            equal = false;
                             break;
                         }
                     }
-                    if (equal == true)
+
+                    if (equal)
                     {
-                        c.sections[x].blocks.clear();
-                        c.sections[x].blocks.shrink_to_fit();
-                        c.sections[x].blocks.push_back(equal_id);
+                        c.sections[x].blocks.resize(1); 
+                        c.sections[x].blocks[0] = first_block;
                     }
                     int index_biome = x * 16 + (i * 384);
                     std::memcpy(c.sections[x].biome.data(), &data_biome[index_biome], 16);
                 }
             }
+            const ms duration2 = clock::now() - before2;
+            log(std::format("Downloading took {}", duration2), LOG_LEVEL::NORMAL);
+            const ms duration = clock::now() - before;
+            log(std::format("Chunk generation took {} ({} chunks)", duration, positions.size()), LOG_LEVEL::NORMAL);
+            log(std::format("Thats {} per chunk", duration/positions.size()), LOG_LEVEL::NORMAL);  
             for (int i = 0; i < ret.size();i++)
             {
                 auto chunk_data = std::make_tuple(ret[i].x, ret[i].z, minecraft::varint(0), std::ref(ret[i]), minecraft::varint(0),
@@ -418,8 +455,8 @@ void world_thread(server &sv, world &w)
                 sv.send_packet(chunk_data, positions[i].fd, 0x27);
             }
 
-            free(data);
             device.unmapMemory(buffer_out_memory);
+            device.unmapMemory(buffer_biome_out_memory);
             device.destroyFence(fence);
             device.destroyCommandPool(command_pool);
             device.destroyPipelineLayout(pipeline_layout);
@@ -428,12 +465,9 @@ void world_thread(server &sv, world &w)
             device.destroyDescriptorPool(descriptor_pool);
             device.destroyDescriptorSetLayout(descriptor_set_layout);
             device.freeMemory(buffer_out_memory);
+            device.freeMemory(buffer_biome_out_memory);
             device.destroyBuffer(buffer_out);
-            
-            const ms duration = clock::now() - before;
-            log(std::format("Chunk generation took {} ({} chunks)", duration, positions.size()), LOG_LEVEL::NORMAL);
-            log(std::format("Thats {} per chunk", duration/positions.size()), LOG_LEVEL::NORMAL);
-            positions.clear();   
+            positions.clear();
         }
 	}
 }

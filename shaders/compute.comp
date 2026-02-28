@@ -154,41 +154,13 @@ void main()
 
     float temp = fbm(vec2(float(x) * 0.0005221649073064327, float(z) * 0.000522164907306432),16, p.seed);
 
-    int surface_block = 9;
 
-    if (temp < -0.3f)
-        surface_block = 11;
-    else if (temp < 0.3f)
-        surface_block = 3;
-    else
-        surface_block = 10;
-    for (int y = 0; y < y_max; y++)
+    for (int y = 0; y < y_max - 3; y++)
     {
         float val2 = fbm3(vec3(x * 0.041f, y * 0.05f, z * 0.041f), p.seed);
         if (val2 > 0.2)
         {
-            if (y < y_max - 3)
-                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(1);
-            else if (y < y_max - 1)
-                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(9);
-            else if (y_max >= 128)
-            {
-                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(surface_block);
-                if (temp < -0.3f && dest[(((y + 1) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] == 0)
-                    dest[(((y + 1) * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(12);
-                else if (temp < -0.3f)
-                    dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(3);
-            }
-        }
-    }
-    if (y_max < 128)
-    {
-        for (int y = y_max - 1; y < 128; y++)
-        {
-            if (temp < -0.3f && y == 127)
-                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(13);
-            else
-                dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(2);
+            dest[((y * 256) + (gl_LocalInvocationID.y * 16) + gl_LocalInvocationID.x) + (p.chunk * 98304)] = int8_t(1);
         }
     }
 }
