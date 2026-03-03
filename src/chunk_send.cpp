@@ -110,7 +110,7 @@ std::expected<std::pair<vk::DeviceMemory, vk::Buffer>, Error> create_buffer(cons
     int propierty_index = -1;
     for (int i = 0; i < memory_properties.memoryTypeCount; i++)
     {
-		vk::MemoryPropertyFlags required_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCached;
+		vk::MemoryPropertyFlags required_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCached | vk::MemoryPropertyFlagBits::eDeviceLocal;
 
        	if ((memory_properties.memoryTypes[i].propertyFlags & required_flags) == required_flags)
         {
@@ -227,9 +227,33 @@ void world_thread(server &sv, world &w)
     std::string compiled_code5 = get_file_contents("../shaders/surface.spv");
 	vk::ShaderModuleCreateInfo shader_info5(vk::ShaderModuleCreateFlags(), compiled_code5.size(), reinterpret_cast<const uint32_t*>(compiled_code5.c_str()));
 	vk::ShaderModule shader_module5 = device.createShaderModule(shader_info5);
+    size_t size = (4096 * 24) * (32 * 32);
+    auto buffer_out_ret_ret = create_buffer(device, physical_device, vk::BufferUsageFlagBits::eStorageBuffer, size);
+    if (!buffer_out_ret_ret)
+    {
+        std::println("{}", buffer_out_ret_ret.error());
+    }
     
+    auto buffer_out_ret = buffer_out_ret_ret.value();
+    vk::DeviceMemory buffer_out_memory = buffer_out_ret.first;
+    vk::Buffer buffer_out = buffer_out_ret.second;
+    
+    
+    size_t size_biome = (16 * 24) * (32 * 32);
+    auto buffer_biome_out_ret_ret = create_buffer(device, physical_device, vk::BufferUsageFlagBits::eStorageBuffer, size_biome);
+    if (!buffer_biome_out_ret_ret)
+    {
+        std::println("{}", buffer_biome_out_ret_ret.error());
+    }
+    
+    auto buffer_biome_out_ret = buffer_biome_out_ret_ret.value();
+    vk::DeviceMemory buffer_biome_out_memory = buffer_biome_out_ret.first;
+    vk::Buffer buffer_biome_out = buffer_biome_out_ret.second;
 
-	while(thread == true)
+
+    int8_t *data = (int8_t *)device.mapMemory(buffer_out_memory, 0, size);
+    int8_t *data_biome = (int8_t *)device.mapMemory(buffer_biome_out_memory, 0, size_biome);
+    while(thread == true)
 	{
 		std::unique_lock lock(world_mut);
 		notify_send.wait_for(lock, std::chrono::milliseconds(5));
@@ -242,30 +266,6 @@ void world_thread(server &sv, world &w)
             using ms = std::chrono::duration<double, std::milli>;
 
             const auto before = clock::now();
-            size_t size = (4096 * 24) * positions.size();
-            auto buffer_out_ret_ret = create_buffer(device, physical_device, vk::BufferUsageFlagBits::eStorageBuffer, size);
-            if (!buffer_out_ret_ret)
-            {
-                std::println("{}", buffer_out_ret_ret.error());
-                continue;
-            }
-
-            auto buffer_out_ret = buffer_out_ret_ret.value();
-            vk::DeviceMemory buffer_out_memory = buffer_out_ret.first;
-            vk::Buffer buffer_out = buffer_out_ret.second;
-
-            
-            size_t size_biome = (16 * 24) * positions.size();
-            auto buffer_biome_out_ret_ret = create_buffer(device, physical_device, vk::BufferUsageFlagBits::eStorageBuffer, size_biome);
-            if (!buffer_biome_out_ret_ret)
-            {
-                std::println("{}", buffer_biome_out_ret_ret.error());
-                continue;
-            }
-
-            auto buffer_biome_out_ret = buffer_biome_out_ret_ret.value();
-            vk::DeviceMemory buffer_biome_out_memory = buffer_biome_out_ret.first;
-            vk::Buffer buffer_biome_out = buffer_biome_out_ret.second;
 
 
             const std::vector<vk::DescriptorSetLayoutBinding> descriptor_set_layout_binding = {
@@ -410,9 +410,6 @@ void world_thread(server &sv, world &w)
             auto res = device.waitForFences({fence}, true, -1);
             device.resetFences(fence);
             
-            int8_t *data = (int8_t *)device.mapMemory(buffer_out_memory, 0, size);
-            int8_t *data_biome = (int8_t *)device.mapMemory(buffer_biome_out_memory, 0, size_biome);
-            
             std::vector<chunk> ret;
             const auto before2 = clock::now();
             for (int i = 0; i < positions.size(); i++)
@@ -454,20 +451,21 @@ void world_thread(server &sv, world &w)
                             minecraft::varint(0),minecraft::varint(0), minecraft::varint(0));
                 sv.send_packet(chunk_data, positions[i].fd, 0x27);
             }
-
-            device.unmapMemory(buffer_out_memory);
-            device.unmapMemory(buffer_biome_out_memory);
+            
             device.destroyFence(fence);
             device.destroyCommandPool(command_pool);
             device.destroyPipelineLayout(pipeline_layout);
             device.destroyPipelineCache(pipeline_cache);
             device.destroyPipeline(pipeline);
+            device.destroyPipeline(pipeline2);
+            device.destroyPipeline(pipeline3);
+            device.destroyPipeline(pipeline4);
+            device.destroyPipeline(pipeline5);
             device.destroyDescriptorPool(descriptor_pool);
             device.destroyDescriptorSetLayout(descriptor_set_layout);
-            device.freeMemory(buffer_out_memory);
-            device.freeMemory(buffer_biome_out_memory);
-            device.destroyBuffer(buffer_out);
             positions.clear();
+            memset(data, 0, (4096 * 24) * positions.size());
+            memset(data_biome, 0, (16 * 24) * positions.size());
         }
 	}
 }
