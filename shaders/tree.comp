@@ -152,7 +152,7 @@ void main()
 
     float t_val = noise(vec2(x * 1.5, z * 1.5), p.seed);
     
-    if (t_val > 0.97 && (int(gl_LocalInvocationID.x) > 4 && int(gl_LocalInvocationID.x) < 12) && (int(gl_LocalInvocationID.y) > 4 && int(gl_LocalInvocationID.y) < 12))
+    if (t_val > 0.9 && (int(gl_LocalInvocationID.x) > 4 && int(gl_LocalInvocationID.x) < 12) && (int(gl_LocalInvocationID.y) > 4 && int(gl_LocalInvocationID.y) < 12))
     {
         float val = fbm(vec2(x * 0.003221649073064327, z * 0.00322164907306432), p.seed);
         

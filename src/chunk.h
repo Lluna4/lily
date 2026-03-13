@@ -158,8 +158,8 @@ struct chunk
 			section sec;
 			sec.blocks.push_back(0);
 			sec.blocks.resize(4096);
-			for (int x = 1; x < 4096; x++)
-				sec.blocks[x] = sec.blocks[0];
+			for (int xx = 1; xx < 4096; xx++)
+				sec.blocks[xx] = sec.blocks[0];
 			sec.palette.push_back(get_block("minecraft:air", {}));
 			sec.palette.push_back(get_block("minecraft:stone", {}));
 			sec.palette.push_back(get_block("minecraft:water", {}));

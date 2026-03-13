@@ -1,5 +1,6 @@
 #include "chunk_send.h"
 #include "log.h"
+#include <string_view>
 
 std::mutex world_mut;
 std::vector<chunk_request> chunks_to_send;
@@ -66,12 +67,12 @@ vk::PhysicalDevice get_physical_device(vk::Instance &instance)
 	int max_index = 0;
 	for (int i = 1; i < scores.size(); i++)
 	{
-		if (scores[i] > scores[max_index])
+		if (scores[i] > scores[max_index] && !std::string_view(devices[i].getProperties().deviceName.data()).contains("llvmpipe"))
 			max_index = i;
 	}
 
-	std::println("Max score {}", scores[0]);
-	return devices[0];
+	std::println("Max score {}", scores[max_index]);
+	return devices[max_index];
 }
 
 std::expected<int,Error> get_compute_queue_family_index(vk::PhysicalDevice &physical_device)
@@ -110,7 +111,7 @@ std::expected<std::pair<vk::DeviceMemory, vk::Buffer>, Error> create_buffer(cons
     int propierty_index = -1;
     for (int i = 0; i < memory_properties.memoryTypeCount; i++)
     {
-		vk::MemoryPropertyFlags required_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCached | vk::MemoryPropertyFlagBits::eDeviceLocal;
+		vk::MemoryPropertyFlags required_flags = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCached | vk::MemoryPropertyFlagBits::eHostCoherent;
 
        	if ((memory_properties.memoryTypes[i].propertyFlags & required_flags) == required_flags)
         {
@@ -143,12 +144,6 @@ void world_thread(server &sv, world &w)
 	siv::PerlinNoise::seed_type tree_seed;
 	siv::PerlinNoise::seed_type temperature_seed;
 	siv::PerlinNoise::seed_type cave_seed;
-	siv::PerlinNoise continentality_noise;
-	siv::PerlinNoise main_noise;
-	siv::PerlinNoise bush_noise;
-	siv::PerlinNoise tree_noise;
-	siv::PerlinNoise temperature;
-	siv::PerlinNoise cave_noise;
 
 	continentality_seed = dist(rng);
 	erosion_seed = dist(rng);
@@ -156,13 +151,6 @@ void world_thread(server &sv, world &w)
 	tree_seed = dist(rng);
 	temperature_seed = dist(rng);
 	cave_seed = dist(rng);
-
-	main_noise = siv::PerlinNoise {erosion_seed};
-	continentality_noise = siv::PerlinNoise {continentality_seed};
-	bush_noise = siv::PerlinNoise {bush_seed};
-	tree_noise = siv::PerlinNoise {tree_seed};
-	temperature = siv::PerlinNoise {tree_seed};
-	cave_noise = siv::PerlinNoise {tree_seed};
 
 
 	vk::ApplicationInfo app_info("Test_compute", 1, nullptr, 0, VK_API_VERSION_1_4);
@@ -227,7 +215,7 @@ void world_thread(server &sv, world &w)
     std::string compiled_code5 = get_file_contents("../shaders/surface.spv");
 	vk::ShaderModuleCreateInfo shader_info5(vk::ShaderModuleCreateFlags(), compiled_code5.size(), reinterpret_cast<const uint32_t*>(compiled_code5.c_str()));
 	vk::ShaderModule shader_module5 = device.createShaderModule(shader_info5);
-    size_t size = (4096 * 24) * (32 * 32);
+    size_t size = (4096 * 24) * (64 * 64);
     auto buffer_out_ret_ret = create_buffer(device, physical_device, vk::BufferUsageFlagBits::eStorageBuffer, size);
     if (!buffer_out_ret_ret)
     {
@@ -239,7 +227,7 @@ void world_thread(server &sv, world &w)
     vk::Buffer buffer_out = buffer_out_ret.second;
     
     
-    size_t size_biome = (16 * 24) * (32 * 32);
+    size_t size_biome = (16 * 24) * (64 * 64);
     auto buffer_biome_out_ret_ret = create_buffer(device, physical_device, vk::BufferUsageFlagBits::eStorageBuffer, size_biome);
     if (!buffer_biome_out_ret_ret)
     {
@@ -253,6 +241,70 @@ void world_thread(server &sv, world &w)
 
     int8_t *data = (int8_t *)device.mapMemory(buffer_out_memory, 0, size);
     int8_t *data_biome = (int8_t *)device.mapMemory(buffer_biome_out_memory, 0, size_biome);
+    
+    const std::vector<vk::DescriptorSetLayoutBinding> descriptor_set_layout_binding = {
+        {0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute},
+    };
+    vk::DescriptorSetLayoutCreateInfo descriptor_layout_info(vk::DescriptorSetLayoutCreateFlags(), descriptor_set_layout_binding);
+    vk::DescriptorSetLayout descriptor_set_layout = device.createDescriptorSetLayout(descriptor_layout_info);
+    std::vector<vk::DescriptorSetLayout> layouts(2, descriptor_set_layout);
+
+    vk::PushConstantRange push_range(vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters));
+
+    vk::PipelineLayoutCreateInfo pipeline_layout_info(vk::PipelineLayoutCreateFlags(), descriptor_set_layout, push_range);
+    vk::PipelineLayout pipeline_layout = device.createPipelineLayout(pipeline_layout_info);
+    vk::PipelineCache pipeline_cache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
+
+    vk::PipelineShaderStageCreateInfo pipeline_shader_info(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module, "main");
+    vk::ComputePipelineCreateInfo compute_pipeline_info(vk::PipelineCreateFlags(), pipeline_shader_info, pipeline_layout);
+    vk::Pipeline pipeline = device.createComputePipeline(pipeline_cache, compute_pipeline_info).value;
+
+    vk::PipelineShaderStageCreateInfo pipeline_shader_info2(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module2, "main");
+    vk::ComputePipelineCreateInfo compute_pipeline_info2(vk::PipelineCreateFlags(), pipeline_shader_info2, pipeline_layout);
+    vk::Pipeline pipeline2 = device.createComputePipeline(pipeline_cache, compute_pipeline_info2).value;
+
+    vk::PipelineShaderStageCreateInfo pipeline_shader_info3(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module3, "main");
+    vk::ComputePipelineCreateInfo compute_pipeline_info3(vk::PipelineCreateFlags(), pipeline_shader_info3, pipeline_layout);
+    vk::Pipeline pipeline3 = device.createComputePipeline(pipeline_cache, compute_pipeline_info3).value;
+
+    vk::PipelineShaderStageCreateInfo pipeline_shader_info4(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module4, "main");
+    vk::ComputePipelineCreateInfo compute_pipeline_info4(vk::PipelineCreateFlags(), pipeline_shader_info4, pipeline_layout);
+    vk::Pipeline pipeline4 = device.createComputePipeline(pipeline_cache, compute_pipeline_info4).value;
+
+    vk::PipelineShaderStageCreateInfo pipeline_shader_info5(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module5, "main");
+    vk::ComputePipelineCreateInfo compute_pipeline_info5(vk::PipelineCreateFlags(), pipeline_shader_info5, pipeline_layout);
+    vk::Pipeline pipeline5 = device.createComputePipeline(pipeline_cache, compute_pipeline_info5).value;
+
+    vk::DescriptorPoolSize descriptor_pool_size(vk::DescriptorType::eStorageBuffer, 2);
+    vk::DescriptorPoolCreateInfo descriptor_pool_info(vk::DescriptorPoolCreateFlags(), 2, descriptor_pool_size);
+    vk::DescriptorPool descriptor_pool = device.createDescriptorPool(descriptor_pool_info);
+
+    vk::DescriptorSetAllocateInfo descriptor_alloc_info(descriptor_pool, 2, layouts.data());
+    std::vector<vk::DescriptorSet> descriptor_sets = device.allocateDescriptorSets(descriptor_alloc_info);
+    vk::DescriptorBufferInfo buffer_out_info(buffer_out, 0, size);
+    std::vector<vk::WriteDescriptorSet> write_descriptor_sets =
+    {
+        {descriptor_sets[0], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &buffer_out_info}
+    };
+    device.updateDescriptorSets(write_descriptor_sets, {});
+
+    vk::DescriptorBufferInfo buffer_biome_out_info(buffer_biome_out, 0, size_biome);
+    std::vector<vk::WriteDescriptorSet> write_descriptor_sets_biome =
+    {
+        {descriptor_sets[1], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &buffer_biome_out_info}
+    };
+    device.updateDescriptorSets(write_descriptor_sets_biome, {}); 
+    
+    vk::CommandPoolCreateInfo command_pool_info(vk::CommandPoolCreateFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer), queue_family_index);
+    vk::CommandPool command_pool = device.createCommandPool(command_pool_info);
+
+    vk::CommandBufferAllocateInfo command_buffer_alloc_info(command_pool, vk::CommandBufferLevel::ePrimary, 1);
+    std::vector<vk::CommandBuffer> command_buffers = device.allocateCommandBuffers(command_buffer_alloc_info);
+
+    vk::CommandBuffer command_buffer = command_buffers.front();
+    vk::Fence fence = device.createFence(vk::FenceCreateInfo());
+    vk::Queue queue = device.getQueue(queue_family_index, 0);
+    
     while(thread == true)
 	{
 		std::unique_lock lock(world_mut);
@@ -260,85 +312,24 @@ void world_thread(server &sv, world &w)
         if (chunks_to_send.empty() == false)
         {
             std::vector<chunk_request> positions = std::move(chunks_to_send);
+            std::vector<chunk> ret;
+            for (int i = 0; i < positions.size(); i++)
+            {
+                ret.emplace_back(0, 0, w.biomes);
+            }
             chunks_to_send.clear();
             lock.unlock();
             using clock = std::chrono::system_clock;
             using ms = std::chrono::duration<double, std::milli>;
 
             const auto before = clock::now();
-
-
-            const std::vector<vk::DescriptorSetLayoutBinding> descriptor_set_layout_binding = {
-                {0, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eCompute},
-            };
-            vk::DescriptorSetLayoutCreateInfo descriptor_layout_info(vk::DescriptorSetLayoutCreateFlags(), descriptor_set_layout_binding);
-            vk::DescriptorSetLayout descriptor_set_layout = device.createDescriptorSetLayout(descriptor_layout_info);
-            std::vector<vk::DescriptorSetLayout> layouts(2, descriptor_set_layout);
-
-            vk::PushConstantRange push_range(vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters));
-
-            vk::PipelineLayoutCreateInfo pipeline_layout_info(vk::PipelineLayoutCreateFlags(), descriptor_set_layout, push_range);
-            vk::PipelineLayout pipeline_layout = device.createPipelineLayout(pipeline_layout_info);
-            vk::PipelineCache pipeline_cache = device.createPipelineCache(vk::PipelineCacheCreateInfo());
-
-            vk::PipelineShaderStageCreateInfo pipeline_shader_info(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module, "main");
-            vk::ComputePipelineCreateInfo compute_pipeline_info(vk::PipelineCreateFlags(), pipeline_shader_info, pipeline_layout);
-            vk::Pipeline pipeline = device.createComputePipeline(pipeline_cache, compute_pipeline_info).value;
-
-            vk::PipelineShaderStageCreateInfo pipeline_shader_info2(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module2, "main");
-            vk::ComputePipelineCreateInfo compute_pipeline_info2(vk::PipelineCreateFlags(), pipeline_shader_info2, pipeline_layout);
-            vk::Pipeline pipeline2 = device.createComputePipeline(pipeline_cache, compute_pipeline_info2).value;
-
-            vk::PipelineShaderStageCreateInfo pipeline_shader_info3(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module3, "main");
-            vk::ComputePipelineCreateInfo compute_pipeline_info3(vk::PipelineCreateFlags(), pipeline_shader_info3, pipeline_layout);
-            vk::Pipeline pipeline3 = device.createComputePipeline(pipeline_cache, compute_pipeline_info3).value;
-
-            vk::PipelineShaderStageCreateInfo pipeline_shader_info4(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module4, "main");
-            vk::ComputePipelineCreateInfo compute_pipeline_info4(vk::PipelineCreateFlags(), pipeline_shader_info4, pipeline_layout);
-            vk::Pipeline pipeline4 = device.createComputePipeline(pipeline_cache, compute_pipeline_info4).value;
-
-            vk::PipelineShaderStageCreateInfo pipeline_shader_info5(vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eCompute, shader_module5, "main");
-            vk::ComputePipelineCreateInfo compute_pipeline_info5(vk::PipelineCreateFlags(), pipeline_shader_info5, pipeline_layout);
-            vk::Pipeline pipeline5 = device.createComputePipeline(pipeline_cache, compute_pipeline_info5).value;
-
-            vk::DescriptorPoolSize descriptor_pool_size(vk::DescriptorType::eStorageBuffer, 2);
-            vk::DescriptorPoolCreateInfo descriptor_pool_info(vk::DescriptorPoolCreateFlags(), 2, descriptor_pool_size);
-            vk::DescriptorPool descriptor_pool = device.createDescriptorPool(descriptor_pool_info);
-
-            vk::DescriptorSetAllocateInfo descriptor_alloc_info(descriptor_pool, 2, layouts.data());
-            std::vector<vk::DescriptorSet> descriptor_sets = device.allocateDescriptorSets(descriptor_alloc_info);
-            vk::DescriptorBufferInfo buffer_out_info(buffer_out, 0, size);
-            std::vector<vk::WriteDescriptorSet> write_descriptor_sets =
-            {
-                {descriptor_sets[0], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &buffer_out_info}
-            };
-            device.updateDescriptorSets(write_descriptor_sets, {});
-
-            vk::DescriptorBufferInfo buffer_biome_out_info(buffer_biome_out, 0, size_biome);
-            std::vector<vk::WriteDescriptorSet> write_descriptor_sets_biome =
-            {
-                {descriptor_sets[1], 0, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &buffer_biome_out_info}
-            };
-            device.updateDescriptorSets(write_descriptor_sets_biome, {});
-
-            vk::CommandPoolCreateInfo command_pool_info(vk::CommandPoolCreateFlags(vk::CommandPoolCreateFlagBits::eResetCommandBuffer), queue_family_index);
-            vk::CommandPool command_pool = device.createCommandPool(command_pool_info);
-
-            vk::CommandBufferAllocateInfo command_buffer_alloc_info(command_pool, vk::CommandBufferLevel::ePrimary, 1);
-            std::vector<vk::CommandBuffer> command_buffers = device.allocateCommandBuffers(command_buffer_alloc_info);
-
-            vk::CommandBuffer command_buffer = command_buffers.front();
-            vk::Fence fence = device.createFence(vk::FenceCreateInfo());
-            vk::Queue queue = device.getQueue(queue_family_index, 0);
-            
-            int y_max = 64;
-            
+            const auto before3 = clock::now();
             vk::CommandBufferBeginInfo command_buffer_begin_info{vk::CommandBufferUsageFlags()};
             command_buffer.begin(command_buffer_begin_info);
-            command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
-            command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
             parameters params;
-
+            
+            command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline4);
+            command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[1]}, {});
             for (int c = 0; c < positions.size(); c++)
             {
                 params.x = positions[c].x;
@@ -346,12 +337,12 @@ void world_thread(server &sv, world &w)
                 params.chunk = c;
                 params.seed = (float)continentality_seed;
                 
-                command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline4);
-                command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[1]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
             }
 
+            command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline5);
+            command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
             for (int c = 0; c < positions.size(); c++)
             {
                 params.x = positions[c].x;
@@ -359,12 +350,13 @@ void world_thread(server &sv, world &w)
                 params.chunk = c;
                 params.seed = (float)continentality_seed;
 
-                command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline5);
-                command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
             }
 
+
+            command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
+            command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
             for (int c = 0; c < positions.size(); c++)
             {
                 params.x = positions[c].x;
@@ -372,12 +364,13 @@ void world_thread(server &sv, world &w)
                 params.chunk = c;
                 params.seed = (float)continentality_seed;
 
-                command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
-                command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
+                
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
             }
 
+            command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline3);
+            command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
             for (int c = 0; c < positions.size(); c++)
             {
                 params.x = positions[c].x;
@@ -385,12 +378,12 @@ void world_thread(server &sv, world &w)
                 params.chunk = c;
                 params.seed = (float)continentality_seed;
 
-                command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline3);
-                command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
             }
 
+            command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline2);
+            command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
             for (int c = 0; c < positions.size(); c++)
             {
                 params.x = positions[c].x;
@@ -398,8 +391,6 @@ void world_thread(server &sv, world &w)
                 params.chunk = c;
                 params.seed = (float)continentality_seed;
 
-                command_buffer.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline2);
-                command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eCompute, pipeline_layout, 0, {descriptor_sets[0]}, {});
                 command_buffer.pushConstants(pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(parameters), &params);
                 command_buffer.dispatch(1, 1, 1);
                 
@@ -409,12 +400,16 @@ void world_thread(server &sv, world &w)
             queue.submit({submit_info}, fence);
             auto res = device.waitForFences({fence}, true, -1);
             device.resetFences(fence);
+            command_buffer.reset();
+            const ms duration3 = clock::now() - before3;
+            log(std::format("GPU compute took {}", duration3), LOG_LEVEL::NORMAL);
             
-            std::vector<chunk> ret;
             const auto before2 = clock::now();
             for (int i = 0; i < positions.size(); i++)
             {
-                chunk &c = ret.emplace_back(positions[i].x, positions[i].z, w.biomes);
+                chunk &c = ret[i];
+                c.x = positions[i].x;
+                c.z = positions[i].z;
                 for (int x = 0; x < c.sections.size(); x++)
                 {
                     int index = x * 4096 + (i * 98304);
@@ -442,9 +437,9 @@ void world_thread(server &sv, world &w)
             const ms duration2 = clock::now() - before2;
             log(std::format("Downloading took {}", duration2), LOG_LEVEL::NORMAL);
             const ms duration = clock::now() - before;
-            log(std::format("Chunk generation took {} ({} chunks)", duration, positions.size()), LOG_LEVEL::NORMAL);
-            log(std::format("Thats {} per chunk", duration/positions.size()), LOG_LEVEL::NORMAL);  
-            for (int i = 0; i < ret.size();i++)
+            log(std::format("Total took {} ({} chunks)", duration, positions.size()), LOG_LEVEL::NORMAL);
+            log(std::format("That's {} per chunk", duration/positions.size()), LOG_LEVEL::NORMAL);  
+            for (int i = 0; i < positions.size(); i++)
             {
                 auto chunk_data = std::make_tuple(ret[i].x, ret[i].z, minecraft::varint(0), std::ref(ret[i]), minecraft::varint(0),
                             minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
@@ -452,20 +447,9 @@ void world_thread(server &sv, world &w)
                 sv.send_packet(chunk_data, positions[i].fd, 0x27);
             }
             
-            device.destroyFence(fence);
-            device.destroyCommandPool(command_pool);
-            device.destroyPipelineLayout(pipeline_layout);
-            device.destroyPipelineCache(pipeline_cache);
-            device.destroyPipeline(pipeline);
-            device.destroyPipeline(pipeline2);
-            device.destroyPipeline(pipeline3);
-            device.destroyPipeline(pipeline4);
-            device.destroyPipeline(pipeline5);
-            device.destroyDescriptorPool(descriptor_pool);
-            device.destroyDescriptorSetLayout(descriptor_set_layout);
-            positions.clear();
-            memset(data, 0, (4096 * 24) * positions.size());
+            memset(data, 0, (4097 * 24) * positions.size());
             memset(data_biome, 0, (16 * 24) * positions.size());
+            positions.clear();
         }
 	}
 }

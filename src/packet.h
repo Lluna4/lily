@@ -430,7 +430,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 		"Teleport confirmed",
 		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, minecraft::varint &id)
 		{
-			log(std::format("Teleport confirmed {}", id.num), LOG_LEVEL::NORMAL);
+			//log(std::format("Teleport confirmed {}", id.num), LOG_LEVEL::NORMAL);
 		}
 	);
 

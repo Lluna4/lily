@@ -3,6 +3,7 @@
 #include "networking/mc_netlib.h"
 #include "chunk.h"
 #include <vulkan/vulkan.hpp>
+#include <execution>
 
 struct chunk_request
 {
