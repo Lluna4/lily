@@ -2,6 +2,8 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
+#include <print>
+#include <iostream>
 #include "split.h"
 
 void generate_config(std::string path);
