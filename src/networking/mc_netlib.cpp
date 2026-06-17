@@ -94,7 +94,7 @@ read_return read_coroutine(int fd, std::vector<netlib::packet> &packets, std::mu
 	{
 		co_await await_socket(fd);
 		int r = recv(fd, &dummy_pkt.data.data[already_read], total_to_read - already_read, 0);
-		if (ret == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+		if (r == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
 		{
 			continue;
 		}
