@@ -3,7 +3,8 @@
 #include <openssl/evp.h>
 #include <string>
 #include <utility>
-#include "networking/buffer.h"
+#include <memory>
+#include <cstring>
 
 namespace minecraft
 {
@@ -29,10 +30,9 @@ namespace minecraft
 
 		void generate(std::string name);
 	};
-
 	struct string
 	{
-		buffer<char> data;
+		std::unique_ptr<char[]> data;
 		size_t size;
 	};
 

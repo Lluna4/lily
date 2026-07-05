@@ -57,7 +57,8 @@ void minecraft::read_string(char *dat, minecraft::string &out)
 	varint size = read_varint(dat);
 
 	dat += size.size;
-	out.data.write(dat, size.num);
-	out.data.write("\0", 1);
+	out.data = std::make_unique<char []>(size.num + 1);
+	memcpy(out.data.get(), dat, size.num);
 	out.size = (size.size + size.num);
 }
+

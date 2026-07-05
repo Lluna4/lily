@@ -1,27 +1,14 @@
-cmake_minimum_required(VERSION 3.5)
-project(lily)
+cmake_minimum_required(VERSION 3.10.0)
+project(lily VERSION 0.1.0 LANGUAGES C CXX)
+add_compile_options(-freflection -std=c++26)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_STANDARD 23)
-
+add_subdirectory(netlib_)
 find_package(OpenSSL REQUIRED)
-find_package(Threads REQUIRED)
 
-add_executable(lily src/main.cpp
-        src/mc_types.cpp
-        src/networking/epoll_utils.cpp
-        src/networking/mc_netlib.cpp
-        src/registry.cpp
-        src/chunk.cpp
-        src/block_registry_processing.cpp
-        src/json_reader.cpp
-        src/json_reader.h
-        src/chat.cpp
+add_executable(lily src/main.cpp src/mc_types.cpp
+        src/packet.h
+        src/deserialize.h
         src/log.cpp
-        src/blocks.cpp
-        src/chunk_send.cpp
-        src/split.cpp
-        src/config.cpp
 )
+target_link_libraries(lily netlib OpenSSL::Crypto)
 
-target_link_libraries(lily PRIVATE OpenSSL::Crypto Threads::Threads)

@@ -1,0 +1,3 @@
+[submodule "netlib_"]
+	path = netlib_
+	url = https://forgejo.lunacat.cat/Luna/netlib_
