@@ -1,17 +1,18 @@
 #pragma once
 #include "../netlib_/src/networking.h"
+#include "registry.h"
 #include "deserialize.h"
+#include "mc_types.h"
 #include "user.h"
 #include "log.h"
 #include <bitset>
 #include <cstddef>
 #include <memory>
+#include <sys/socket.h>
+#include <variant>
 
-struct pkt_header
-{
-	minecraft::varint size;
-	minecraft::varint id;
-};
+
+int chat_id = 0;
 
 static std::vector<std::bitset<6>> proc_6bit(std::string hi)
 {
@@ -128,26 +129,38 @@ struct pong
 	uint64_t timestamp;
 };
 
-static packet generate_packet(int fd, int id, size_t size, char *data)
+struct login_start
 {
-	char dummy[10];
-	int id_len = minecraft::write_varint(dummy, 0x00);
+	minecraft::string name;
+};
 
-	int payload_len = size + id_len;
-	int packet_len_varint_size = minecraft::write_varint(dummy, payload_len);
+struct login_success
+{
+	minecraft::uuid uuid;
+	std::string name;
+	minecraft::varint size;
+};
 
-	packet pkt;
-	pkt.size = packet_len_varint_size + payload_len;
-	pkt.data = std::make_unique<char []>(packet_len_varint_size + payload_len);
-	pkt.id = id;
-	pkt.fd = fd;
-	pkt_header head = {.size = minecraft::varint(payload_len), .id = minecraft::varint(pkt.id)};
-	int offset = serialize(head, pkt.data.get());
-	memcpy(pkt.data.get() + offset, data, size);
+struct client_info 
+{
+	minecraft::string locale;
+	char view_distance;
+	minecraft::varint chat_mode;
+	bool char_colors;
+	unsigned char skin_parts;
+	minecraft::varint main_hand;
+	bool text_filtering;
+	bool server_list;
+	minecraft::varint particle_level;
+};
 
-	return std::move(pkt);
-
-}
+struct known_packs
+{
+	minecraft::varint pack_num;
+	std::string namesp;
+	std::string id;
+	std::string version;
+};
 
 void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions_handshake, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_status, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_login, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_config, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_play)
 {
@@ -203,15 +216,8 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 										}}", play_users, "hi!");
 
 				status_response resp = {.data = json_response};
+				send_packet(fd, 0x00, resp, sv);
 
-				char dummy[10];
-				int str_len_varint_size = minecraft::write_varint(dummy, resp.data.size());
-				std::unique_ptr<char []> dat = std::make_unique<char []>(resp.data.size() + str_len_varint_size);
-				
-				serialize(resp, dat.get());
-				packet pkt = generate_packet(fd, 0x00, resp.data.size() + str_len_varint_size, dat.get());
-
-				sv.send_packet(std::move(pkt), fd, 0x00);
 			}
 		);
 
@@ -222,12 +228,49 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 			log("Ping!", LOG_LEVEL::NORMAL);
 			user &u = users.find(fd)->second;
 			pong resp = {.timestamp = data.timestamp};
-			std::unique_ptr<char []> dat = std::make_unique<char []>(sizeof(long));
-			serialize(resp, dat.get());
-			packet pkt = generate_packet(fd, 0x01, sizeof(long), dat.get());
-			pkt.dc = true;
-			sv.send_packet(std::move(pkt), fd, 0x01);
+			send_packet(fd, 0x01, resp, sv);
 			//disconnected.push_back(fd);
+		}
+	);
+
+	packet_definitions_login[0x00] = std::make_unique<packet_executer<login_start>>(
+		"Login start",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, login_start &login)
+		{
+			user &u = users.find(fd)->second;
+            u.name = login.name.data.get();
+            u.uuid.generate(login.name.data.get());
+            log(std::format("Name is {}", login.name.data.get()), LOG_LEVEL::NORMAL);
+
+            login_success resp = {.uuid = u.uuid, .name = u.name.data(), .size = minecraft::varint(0)};
+			send_packet(fd, 0x2, resp, sv);
+		}
+	);
+
+	packet_definitions_login[0x03] = std::make_unique<packet_executer<std::monostate>>(
+		"Login Acknowledged",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::monostate &data)
+		{
+			user &u = users.find(fd)->second;
+            u.state = STATE::CONFIGURATION;
+            log("Login awknowledged", LOG_LEVEL::NORMAL);
+		}
+	);
+
+	 packet_definitions_config[0x00] = std::make_unique<packet_executer<client_info>>(
+		"Client info",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, client_info &data)
+		{
+			user &u = users.find(fd)->second;
+            log(std::format("Locale {} View distance {}", data.locale.data.get(), (int)data.view_distance), LOG_LEVEL::NORMAL);
+            u.locale = data.locale.data.get();
+            u.view_distance = data.view_distance;
+
+			known_packs known = {.pack_num = minecraft::varint(1), .namesp = "minecraft", .id = "core", .version = "1.21.10"};
+			send_packet(fd, 0xE, known, sv);
+            chat_id = send_registry(fd, sv);
+			std::monostate dat;
+			send_packet(fd, 0x3, dat, sv);
 		}
 	);
 }

@@ -9,6 +9,7 @@ add_executable(lily src/main.cpp src/mc_types.cpp
         src/packet.h
         src/deserialize.h
         src/log.cpp
+        src/registry.cpp
 )
 target_link_libraries(lily netlib OpenSSL::Crypto)
 

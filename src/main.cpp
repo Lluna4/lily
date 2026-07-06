@@ -60,6 +60,28 @@ void execute_packet(packet &pkt, server &sv)
         pt->parse(pkt);
         pt->handle(sv, users, disconnected, fd);
     }
+    else if (u.state == STATE::LOGIN)
+    {
+        auto p = packet_definitions_login.find(pkt.id);
+        if (p == packet_definitions_login.end())
+            return;
+
+        auto pt = p->second.get();
+
+        pt->parse(pkt);
+        pt->handle(sv, users, disconnected, fd);
+    }
+    else if (u.state == STATE::CONFIGURATION)
+    {
+        auto p = packet_definitions_config.find(pkt.id);
+        if (p == packet_definitions_config.end())
+            return;
+
+        auto pt = p->second.get();
+
+        pt->parse(pkt);
+        pt->handle(sv, users, disconnected, fd);
+    }
 
 }
 
