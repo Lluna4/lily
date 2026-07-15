@@ -8,6 +8,9 @@
 #include "deserialize.h"
 #include "user.h"
 #include "packet.h"
+#include "registry.h"
+#include "chunk_send.h"
+#include "block_registry_processing.h"
 
 std::map<int, user> users;
 std::vector<int> disconnected;
@@ -16,6 +19,7 @@ std::map<int, std::unique_ptr<packet_base>> packet_definitions_status;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_login;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_config;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_play;
+world w;
 
 int read_size(packet &pkt, int fd)
 {
@@ -90,7 +94,15 @@ int main()
     server s(server_mode::SIZE_READ, read_size);
     s.open_server("0.0.0.0", 25565);
     set_packets(packet_definitions_handshake, packet_definitions_status, packet_definitions_login, packet_definitions_config, packet_definitions_play);
-
+    get_registry(biomes, dimensions);
+    std::thread world_th(world_thread, std::ref(s), std::ref(w));
+	world_th.detach();
+	process_item_registry("../generated/reports/registries.json", items);
+	w.set_blocks(std::move(process_block_registry("../generated/reports/blocks.json")));
+	log("Added block registry", LOG_LEVEL::NORMAL);
+	w.generate_seeds();
+	get_registry(w.biomes, dimensions);
+	w.get_chunk(0, 0, &spawn_y);
     while (true)
     {
         auto pkts = s.get_packets();

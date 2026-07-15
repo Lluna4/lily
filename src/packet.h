@@ -7,12 +7,18 @@
 #include "log.h"
 #include <bitset>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <sys/socket.h>
 #include <variant>
+#include "chunk_send.h"
 
 
 int chat_id = 0;
+std::vector<std::string> biomes;
+std::vector<std::string> dimensions;
+int spawn_y = 100;
+std::unordered_map<int, std::string> items;
 
 static std::vector<std::bitset<6>> proc_6bit(std::string hi)
 {
@@ -162,6 +168,58 @@ struct known_packs
 	std::string version;
 };
 
+struct login_play 
+{
+	int32_t entity_id;
+	bool is_hardcore;
+	minecraft::varint num;
+	std::string dimension_names;
+	minecraft::varint max_players;
+	minecraft::varint view_distance;
+	minecraft::varint simulation_distance;
+	bool reduced_debug_info;
+	bool enable_respawn_screen;
+	bool do_limited_crafting;
+	minecraft::varint dimension_type;
+	std::string dimension_name;
+	int64_t hashed_seed;
+	unsigned char game_mode;
+	signed char previous_game_mode;
+	bool is_debug;
+	bool is_flat;
+	bool has_death_location;
+	minecraft::varint portal_cooldown;
+	minecraft::varint sea_level;
+	bool enforces_secure_chat;
+};
+
+
+struct player_position
+{
+	minecraft::varint teleport_id;
+	double x;
+	double y;
+	double z;
+	double velocity_x;
+	double velocity_y;
+	double velocity_z;
+	float yaw;
+	float pitch;
+	int32_t flags;
+};
+
+struct game_event
+{
+	uint8_t event;
+	float value;
+};
+
+struct set_center_chunk
+{
+	minecraft::varint x;
+	minecraft::varint z;
+};
+
 void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions_handshake, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_status, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_login, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_config, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_play)
 {
 	    packet_definitions_handshake[0x0] = std::make_unique<packet_executer<handshake>>(
@@ -271,6 +329,42 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
             chat_id = send_registry(fd, sv);
 			std::monostate dat;
 			send_packet(fd, 0x3, dat, sv);
+		}
+	);
+
+	packet_definitions_config[0x03] = std::make_unique<packet_executer<std::monostate>>(
+		"Finish config",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::monostate &data)
+		{
+			user &u = users.find(fd)->second;
+            u.state = STATE::PLAY;
+			login_play log = {fd, false, minecraft::varint(1), "minecraft:overworld",
+								minecraft::varint(20), minecraft::varint(u.view_distance),
+								minecraft::varint(u.view_distance), false, true, false,
+								minecraft::varint(std::distance(dimensions.begin(), std::find(dimensions.begin(), dimensions.end(), "overworld"))),
+								"minecraft:overworld", 128612, 1, -1, false,
+								false, false, minecraft::varint(0), minecraft::varint(64), false
+							};
+			u.y = spawn_y;
+			send_packet(fd, 0x30, log, sv);
+			player_position pos = {minecraft::varint(1), u.x, u.y, u.z, 0.0f, 0.0f,
+									0.0f, u.yaw, u.pitch, 0};
+			send_packet(fd, 0x46, pos, sv);
+			game_event wait_for_chunks = {13, 0.0f};
+			send_packet(fd, 0x26, wait_for_chunks, sv);
+			set_center_chunk center = {minecraft::varint(0), minecraft::varint(0)};
+			send_packet(fd, 0x5C, center, sv);
+			
+			std::vector<std::pair<int, int>> positions;
+            for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
+            {
+                for (int x = -u.view_distance - 2; x < u.view_distance + 2; x++)
+                {
+                    positions.push_back(std::make_pair(x, y));
+                }
+            }
+			send_chunks(fd, positions);
+            u.state = STATE::PLAY;
 		}
 	);
 }

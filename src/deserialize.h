@@ -2,6 +2,31 @@
 #include <meta>
 #include "mc_types.h"
 #include <bit>
+#include <bitset>
+#include "chunk.h"
+#include <type_traits>
+#ifdef __FreeBSD__
+#include <sys/endian.h>
+#endif
+#ifdef __APPLE__
+#include <libkern/OSByteOrder.h>
+
+
+#define htobe16(x) OSSwapHostToBigInt16(x)
+#define htole16(x) OSSwapHostToLittleInt16(x)
+#define be16toh(x) OSSwapBigToHostInt16(x)
+#define le16toh(x) OSSwapLittleToHostInt16(x)
+
+#define htobe32(x) OSSwapHostToBigInt32(x)
+#define htole32(x) OSSwapHostToLittleInt32(x)
+#define be32toh(x) OSSwapBigToHostInt32(x)
+#define le32toh(x) OSSwapLittleToHostInt32(x)
+
+#define htobe64(x) OSSwapHostToBigInt64(x)
+#define htole64(x) OSSwapHostToLittleInt64(x)
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#define le64toh(x) OSSwapLittleToHostInt64(x)
+#endif
 
 struct pkt_header
 {
@@ -48,17 +73,17 @@ int serialize(T &s, char *data)
 
 		template for (constexpr auto item: items)
 		{
-			if constexpr (std::meta::type_of(item) == ^^minecraft::varint)
+			if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, minecraft::varint>)
 			{
 				offset += minecraft::write_varint(&data[offset], s.[:item:].num);
 			}
-			else if constexpr (std::meta::type_of(item) == ^^std::string)
+			else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, std::string>)
 			{
 				offset += minecraft::write_varint(&data[offset], s.[:item:].size());
 				memcpy(&data[offset], s.[:item:].c_str(), s.[:item:].size());
 				offset += s.[:item:].size();
 			}
-			else if constexpr (std::meta::type_of(item) == ^^minecraft::uuid)
+			else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, minecraft::uuid>)
 			{
 				uint64_t msb = 0;
 				uint64_t lsb = 0;
@@ -69,6 +94,78 @@ int serialize(T &s, char *data)
 				memcpy(&data[offset], &msb, sizeof(uint64_t));
 				offset += sizeof(uint64_t);
 
+			}
+			else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, double>)
+			{
+				uint64_t conv = htobe64((*(uint64_t *)&s.[:item:]));
+				memcpy(&data[offset], &conv, sizeof(s.[:item:]));
+				offset += sizeof(s.[:item:]);
+			}
+			else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, float>)
+			{
+				uint32_t conv = htobe64((*(uint32_t *)&s.[:item:]));
+				memcpy(&data[offset], &conv, sizeof(s.[:item:]));
+				offset += sizeof(s.[:item:]);
+			}
+			else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, chunk>)
+			{
+
+				std::unique_ptr<char []> tmp = std::make_unique<char []>(s.[:item:].encoded_data_size);
+				size_t real_size = 0;
+
+				for (auto &sec: s.[:item:].sections)
+				{
+					short non_air = htobe16(*(uint16_t*)&sec.non_air_blocks);
+					memcpy(&tmp.get()[real_size], &non_air, sizeof(short));
+					real_size += sizeof(short);
+					if (sec.blocks.size() == 1)
+					{
+						tmp.get()[real_size] = 0;
+						real_size++;
+						real_size += minecraft::write_varint(&tmp.get()[real_size], sec.palette[sec.blocks[0]]);
+					}
+					else
+					{
+						tmp.get()[real_size] = 8;
+						real_size++;
+						real_size += minecraft::write_varint(&tmp.get()[real_size], sec.palette.size());
+						for (auto &p: sec.palette)
+						{
+							real_size += minecraft::write_varint(&tmp.get()[real_size], p);
+						}
+						for (int i = 0; i < 512; i++)
+						{
+							int64_t tmp_l = 0;
+							memcpy(&tmp_l, &sec.blocks[i * 8], sizeof(int64_t));
+							tmp_l = htobe64((*(uint64_t *)&tmp_l));
+							memcpy(&tmp.get()[real_size], &tmp_l, sizeof(int64_t));
+							real_size += sizeof(int64_t);
+						}
+					}
+					tmp.get()[real_size] = 1;
+					real_size++;
+					
+					real_size += minecraft::write_varint(&tmp.get()[real_size], sec.biome_palette.size());
+					for (auto &p: sec.biome_palette)
+					{
+						real_size += minecraft::write_varint(&tmp.get()[real_size], p);
+					}
+					std::bitset<64> l;
+					for (int i = 0; i < 64; i++)
+					{
+						l[i] = sec.biome[i];
+					}
+					uint64_t tmp_l = l.to_ulong();
+					tmp_l = htobe64((*(uint64_t *)&tmp_l));
+					memcpy(&tmp.get()[real_size], &tmp_l, sizeof(int64_t));
+					real_size += sizeof(int64_t);
+				}
+				
+				offset += minecraft::write_varint(&data[offset], real_size);
+				memcpy(&data[offset], tmp.get(), real_size);
+				
+				
+				offset += real_size;
 			}
 			else
 			{
@@ -105,6 +202,55 @@ int size_of(T &s)
 			else if constexpr (std::meta::type_of(item) == ^^minecraft::uuid)
 			{
 				size += 16;
+			}
+			else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, chunk>)
+			{
+				s.[:item:].encoded_data_size = 0;
+				char dummy[10];
+
+				for (auto &sec: s.[:item:].sections)
+				{
+					short non_air = htobe16(*(uint16_t*)&sec.non_air_blocks);
+					s.[:item:].encoded_data_size += sizeof(short);
+					if (sec.blocks.size() == 1)
+					{
+						s.[:item:].encoded_data_size++;
+						s.[:item:].encoded_data_size += minecraft::write_varint(dummy, sec.palette[sec.blocks[0]]);
+					}
+					else
+					{
+						s.[:item:].encoded_data_size++;
+
+						s.[:item:].encoded_data_size += minecraft::write_varint(dummy, sec.palette.size());
+						for (auto &p: sec.palette)
+						{
+							s.[:item:].encoded_data_size += minecraft::write_varint(dummy, p);
+						}
+						for (int i = 0; i < 512; i++)
+						{
+							int64_t tmp = 0;
+							memcpy(&tmp, &sec.blocks[i * 8], sizeof(int64_t));
+							tmp = htobe64((*(uint64_t *)&tmp));
+							s.[:item:].encoded_data_size += sizeof(int64_t);
+						}
+					}
+					s.[:item:].encoded_data_size++;
+					s.[:item:].encoded_data_size += minecraft::write_varint(dummy, sec.biome_palette.size());
+					for (auto &p: sec.biome_palette)
+					{
+						s.[:item:].encoded_data_size += minecraft::write_varint(dummy, p);
+					}
+					std::bitset<64> l;
+					for (int i = 0; i < 64; i++)
+					{
+						l[i] = sec.biome[i];
+					}
+					uint64_t tmp = l.to_ulong();
+					tmp = htobe64((*(uint64_t *)&tmp));
+					s.[:item:].encoded_data_size += sizeof(uint64_t);
+				}
+				s.[:item:].encoded_data_size += minecraft::write_varint(dummy, s.[:item:].encoded_data_size);
+				size += s.[:item:].encoded_data_size;
 			}
 			else
 				size += sizeof(s.[:item:]);

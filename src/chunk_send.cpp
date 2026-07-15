@@ -1,0 +1,62 @@
+#include "chunk_send.h"
+
+std::mutex world_mut;
+std::vector<chunk_request> chunks_to_send;
+std::condition_variable notify_send;
+bool thread = true;
+
+struct chunk_data
+{
+    int x;
+    int y;
+    minecraft::varint heightmaps_size;
+    chunk &c;
+    minecraft::varint block_entity_size;
+    minecraft::varint sky_light;
+    minecraft::varint block_light;
+    minecraft::varint sky_light_empty;
+    minecraft::varint block_light_empty;
+    minecraft::varint sky_light_arr;
+    minecraft::varint block_light_arr;
+};
+
+void send_chunks(int fd, std::vector<std::pair<int, int>> &pos)
+{
+	std::unique_lock lock(world_mut);
+	for (auto &p: pos)
+	{
+		chunks_to_send.emplace_back(p.first, p.second, fd);
+	}
+	lock.unlock();
+	notify_send.notify_all();
+}
+
+void world_thread(server &sv, world &w)
+{
+	while(thread == true)
+	{
+		std::unique_lock lock(world_mut);
+		notify_send.wait_for(lock, std::chrono::milliseconds(5));
+        if (chunks_to_send.empty() == false)
+        {
+            std::vector<chunk_request> chunks = std::move(chunks_to_send);
+            chunks_to_send.clear();
+            lock.unlock();
+            for (int i = 0; i < chunks.size();i++)
+            {
+                chunk &c = w.get_chunk(chunks[i].x, chunks[i].z);
+            }
+            w.build_trees();
+            for (int i = 0; i < chunks.size();i++)
+            {
+                chunk &c = w.get_chunk(chunks[i].x, chunks[i].z);
+                chunk_data ch_data = {chunks[i].x, chunks[i].z, minecraft::varint(0), std::ref(c), minecraft::varint(0),
+                    minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
+                    minecraft::varint(0),minecraft::varint(0), minecraft::varint(0)};
+
+                send_packet(chunks[i].fd, 0x2C, ch_data, sv);
+            }
+            chunks.clear();
+        }
+	}
+}
