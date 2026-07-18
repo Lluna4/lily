@@ -220,6 +220,16 @@ struct set_center_chunk
 	minecraft::varint z;
 };
 
+struct entity_effect
+{
+	minecraft::varint entity_id;
+	minecraft::varint effect_id;
+	minecraft::varint amplifier;
+	minecraft::varint duration;
+	char flags;
+	bool a;
+};
+
 void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions_handshake, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_status, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_login, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_config, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_play)
 {
 	    packet_definitions_handshake[0x0] = std::make_unique<packet_executer<handshake>>(
@@ -350,6 +360,9 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 			player_position pos = {minecraft::varint(1), u.x, u.y, u.z, 0.0f, 0.0f,
 									0.0f, u.yaw, u.pitch, 0};
 			send_packet(fd, 0x46, pos, sv);
+			entity_effect effect = {minecraft::varint(fd), minecraft::varint(15),
+				minecraft::varint(1), minecraft::varint(999999), 0x04, false};
+			send_packet(fd, 0x82, effect, sv);
 			game_event wait_for_chunks = {13, 0.0f};
 			send_packet(fd, 0x26, wait_for_chunks, sv);
 			set_center_chunk center = {minecraft::varint(0), minecraft::varint(0)};
