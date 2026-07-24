@@ -89,6 +89,28 @@ void execute_packet(packet &pkt, server &sv)
 
 }
 
+void update_keep_alive(server &sv)
+{
+    for (auto &u: users)
+    {
+        u.second.ticks_to_keepalive--;
+        if (u.second.ticks_to_keepalive == 0)
+        {
+            keep_alive k = {4};
+            send_packet(u.first, 0x2B, k, sv);
+            u.second.sent = true;
+            log("Sent keep alive", LOG_LEVEL::NORMAL);
+        }
+        if (u.second.ticks_to_keepalive == 3000)
+        {
+            sv.disconnect_client(u.first);
+            users.erase(u.first);
+            log("User timed out", LOG_LEVEL::WARNING);
+        }
+    }
+}
+
+
 int main()
 {
     server s(server_mode::SIZE_READ, read_size);
@@ -123,6 +145,7 @@ int main()
 
             std::println("Header is {} {}", head.size.num, head.id.num);
         }
+        update_keep_alive(s);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     

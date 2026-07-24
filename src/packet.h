@@ -230,6 +230,11 @@ struct entity_effect
 	bool a;
 };
 
+struct keep_alive
+{
+	long value;
+};
+
 void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions_handshake, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_status, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_login, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_config, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_play)
 {
 	    packet_definitions_handshake[0x0] = std::make_unique<packet_executer<handshake>>(
@@ -380,5 +385,24 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
             u.state = STATE::PLAY;
 		}
 	);
+
+	packet_definitions_play[0x1B] = std::make_unique<packet_executer<keep_alive>>(
+	"Keep alive",
+	[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, keep_alive &k)
+	{
+		user &u = users.find(fd)->second;
+		if (k.value != 4 || u.sent == false)
+		{
+			sv.disconnect_client(fd);
+			u.state = STATE::DISCONNECTED;
+			disconnected.push_back(fd);
+			return;
+		}
+		u.ticks_to_keepalive = 500;
+		u.sent = false;
+		log("Received keep alive", LOG_LEVEL::NORMAL);
+	}
+	);
+
 }
 
