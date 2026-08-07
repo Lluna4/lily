@@ -53,6 +53,18 @@ void deserialize(T &s, char *data)
 				minecraft::read_string(&data[offset], s.[:item:]);
 				offset += s.[:item:].size;
 			}
+			else if constexpr (std::meta::type_of(item) == ^^double)
+			{
+				std::uint64_t num_as_uint64;
+				double num;
+			
+				memcpy(&num_as_uint64, &data[offset], sizeof(std::uint64_t));
+				num_as_uint64 = be64toh(num_as_uint64);
+				memcpy(&num, &num_as_uint64, sizeof(double));
+				s.[:item:] = num;
+
+				offset += sizeof(double);
+			}
 			else
 			{
 				memcpy(&s.[:item:], &data[offset], sizeof(s.[:item:]));

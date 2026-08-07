@@ -235,6 +235,62 @@ struct keep_alive
 	long value;
 };
 
+struct player_position_play
+{
+	double x;
+	double feet_y;
+	double z;
+	bool flags;
+};
+
+void stream_world(user &u, server &sv)
+{
+	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
+	{
+		set_center_chunk center = {minecraft::varint((unsigned long)(*(unsigned int *)&u.chunk_x)), minecraft::varint((unsigned long)(*(unsigned int *)&u.chunk_z))};
+		send_packet(u.fd, 0x5C, center, sv);
+	}
+	else
+		return;
+	if (u.chunk_x != u.prev_chunk_x)
+	{
+		int chunk_start_x = u.chunk_x + u.view_distance;
+
+		if (u.chunk_x < u.prev_chunk_x)
+			chunk_start_x = u.chunk_x - u.view_distance;
+		std::vector<std::pair<int, int>> positions;
+		for (int x = chunk_start_x - 1; x < chunk_start_x + 2; x++)
+		{
+			for (int z = u.chunk_z - u.view_distance - 1; z < u.chunk_z + u.view_distance + 1; z++)
+			{
+				positions.push_back(std::make_pair(x, z));
+			}
+		}
+		send_chunks(u.fd, positions);
+		//send_system_chat("Moved chunks in x", users, sv);
+	}
+	if (u.chunk_z != u.prev_chunk_z)
+	{
+		int chunk_start_z = u.chunk_z + u.view_distance;
+
+		if (u.chunk_z < u.prev_chunk_z)
+			chunk_start_z = u.chunk_z - u.view_distance;
+		
+		std::vector<std::pair<int, int>> positions;
+		for (int z = chunk_start_z - 1; z < chunk_start_z + 2; z++)
+		{
+			for (int x = u.chunk_x - u.view_distance - 1; x < u.chunk_x + u.view_distance + 1; x++)
+			{
+				positions.push_back(std::make_pair(x, z));
+			}
+		}
+		send_chunks(u.fd, positions);
+		//send_system_chat("Moved chunks in z", users, sv);
+	}
+
+}
+
+
 void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions_handshake, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_status, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_login, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_config, std::map<int, std::unique_ptr<packet_base>> &packet_definitions_play)
 {
 	    packet_definitions_handshake[0x0] = std::make_unique<packet_executer<handshake>>(
@@ -387,22 +443,75 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 	);
 
 	packet_definitions_play[0x1B] = std::make_unique<packet_executer<keep_alive>>(
-	"Keep alive",
-	[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, keep_alive &k)
-	{
-		user &u = users.find(fd)->second;
-		if (k.value != 4 || u.sent == false)
+		"Keep alive",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, keep_alive &k)
 		{
-			sv.disconnect_client(fd);
-			u.state = STATE::DISCONNECTED;
-			disconnected.push_back(fd);
-			return;
+			user &u = users.find(fd)->second;
+			if (k.value != 4 || u.sent == false)
+			{
+				sv.disconnect_client(fd);
+				u.state = STATE::DISCONNECTED;
+				disconnected.push_back(fd);
+				return;
+			}
+			u.ticks_to_keepalive = 500;
+			u.sent = false;
+			log("Received keep alive", LOG_LEVEL::NORMAL);
 		}
-		u.ticks_to_keepalive = 500;
-		u.sent = false;
-		log("Received keep alive", LOG_LEVEL::NORMAL);
-	}
 	);
+	packet_definitions_play[0x1D] = std::make_unique<packet_executer<player_position_play>>(
+		"Set player position",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, player_position_play &pos)
+		{
+			user &u = users.find(fd)->second;
+			u.prev_x = u.x;
+			u.prev_y = u.y;
+			u.prev_z = u.z;
+			u.prev_chunk_x = u.chunk_x;
+			u.prev_chunk_z = u.chunk_z;
+			u.x = pos.x;
+			u.y = pos.feet_y;
+			u.z = pos.z;
+			u.chunk_x = floor((float)u.x/16.0f);
+			u.chunk_z = floor((float)u.z/16.0f);
+			if (pos.flags == 0x01)
+				u.on_ground = true;
+
+			stream_world(u, sv);
+		}
+	);
+
+
+	/*packet_definitions_play[0x1E] = std::make_unique<packet<double, double, double, float, float, char>>(
+		"Set player position and rotation",
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, double &x, double &y, double &z, float &yaw, float &pitch, char &flags)
+		{
+			user &u = users.find(fd)->second;
+			u.prev_x = u.x;
+			u.prev_y = u.y;
+			u.prev_z = u.z;
+			u.prev_chunk_x = u.chunk_x;
+			u.prev_chunk_z = u.chunk_z;
+			u.x = x;
+			u.y = y;
+			u.z = z;
+			u.chunk_x = floor((float)u.x/16.0f);
+			u.chunk_z = floor((float)u.z/16.0f);
+			u.yaw = yaw;
+			u.pitch = pitch;
+			if (flags == 0x01)
+				u.on_ground = true;
+
+			auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
+										(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096),
+										(char)((u.yaw/360) * 256), (char)((u.pitch/360) * 256), u.on_ground);
+			send_all_except_user(update_player_position, u, 0x2F, sv, users);
+
+			auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
+			send_all_except_user(update_head, u, 0x4C, sv, users);
+			stream_world(u, sv);
+		}
+	);*/
 
 }
 

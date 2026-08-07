@@ -86,6 +86,17 @@ void execute_packet(packet &pkt, server &sv)
         pt->parse(pkt);
         pt->handle(sv, users, disconnected, fd);
     }
+    else if (u.state == STATE::PLAY)
+    {
+        auto p = packet_definitions_play.find(pkt.id);
+        if (p == packet_definitions_play.end())
+            return;
+
+        auto pt = p->second.get();
+
+        pt->parse(pkt);
+        pt->handle(sv, users, disconnected, fd);
+    }
 
 }
 
@@ -143,7 +154,7 @@ int main()
             pkt.header_offset = head.size.size + head.id.size;
             execute_packet(pkt, s);
 
-            std::println("Header is {} {}", head.size.num, head.id.num);
+            //std::println("Header is {} {}", head.size.num, head.id.num);
         }
         update_keep_alive(s);
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
