@@ -243,6 +243,16 @@ struct player_position_play
 	bool flags;
 };
 
+struct player_position_rotation_play
+{
+	double x;
+	double feet_y;
+	double z;
+	float yaw;
+	float pitch;
+	bool flags;
+};
+
 void stream_world(user &u, server &sv)
 {
 	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
@@ -482,9 +492,9 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 	);
 
 
-	/*packet_definitions_play[0x1E] = std::make_unique<packet<double, double, double, float, float, char>>(
+	packet_definitions_play[0x1E] = std::make_unique<packet_executer<player_position_rotation_play>>(
 		"Set player position and rotation",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, double &x, double &y, double &z, float &yaw, float &pitch, char &flags)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, player_position_rotation_play &pos)
 		{
 			user &u = users.find(fd)->second;
 			u.prev_x = u.x;
@@ -492,26 +502,19 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 			u.prev_z = u.z;
 			u.prev_chunk_x = u.chunk_x;
 			u.prev_chunk_z = u.chunk_z;
-			u.x = x;
-			u.y = y;
-			u.z = z;
+			u.x = pos.x;
+			u.y = pos.feet_y;
+			u.z = pos.z;
 			u.chunk_x = floor((float)u.x/16.0f);
 			u.chunk_z = floor((float)u.z/16.0f);
-			u.yaw = yaw;
-			u.pitch = pitch;
-			if (flags == 0x01)
+			u.yaw = pos.yaw;
+			u.pitch = pos.pitch;
+			if (pos.flags == 0x01)
 				u.on_ground = true;
 
-			auto update_player_position = std::make_tuple(minecraft::varint(fd), (short)(u.x * 4096 - u.prev_x * 4096),
-										(short)(u.y * 4096 - u.prev_y * 4096), (short)(u.z * 4096 - u.prev_z * 4096),
-										(char)((u.yaw/360) * 256), (char)((u.pitch/360) * 256), u.on_ground);
-			send_all_except_user(update_player_position, u, 0x2F, sv, users);
-
-			auto update_head = std::make_tuple(minecraft::varint(fd), (char)((u.yaw/360) * 256));
-			send_all_except_user(update_head, u, 0x4C, sv, users);
 			stream_world(u, sv);
 		}
-	);*/
+	);
 
 }
 

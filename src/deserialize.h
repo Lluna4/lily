@@ -65,6 +65,18 @@ void deserialize(T &s, char *data)
 
 				offset += sizeof(double);
 			}
+			else if constexpr (std::meta::type_of(item) == ^^float)
+			{
+				std::uint32_t num_as_uint32;
+				float num;
+			
+				memcpy(&num_as_uint32, &data[offset], sizeof(std::uint32_t));
+				num_as_uint32 = be32toh(num_as_uint32);
+				memcpy(&num, &num_as_uint32, sizeof(float));
+				s.[:item:] = num;
+
+				offset += sizeof(float);
+			}
 			else
 			{
 				memcpy(&s.[:item:], &data[offset], sizeof(s.[:item:]));

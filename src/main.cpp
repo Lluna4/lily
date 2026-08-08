@@ -124,6 +124,9 @@ void update_keep_alive(server &sv)
 
 int main()
 {
+    using clock = std::chrono::system_clock;
+	using ms = std::chrono::duration<double, std::milli>;
+
     server s(server_mode::SIZE_READ, read_size);
     s.open_server("0.0.0.0", 25565);
     set_packets(packet_definitions_handshake, packet_definitions_status, packet_definitions_login, packet_definitions_config, packet_definitions_play);
@@ -138,6 +141,7 @@ int main()
 	w.get_chunk(0, 0, &spawn_y);
     while (true)
     {
+        const auto before = clock::now();
         auto pkts = s.get_packets();
         for (auto &pkt: pkts)
         {
@@ -157,7 +161,10 @@ int main()
             //std::println("Header is {} {}", head.size.num, head.id.num);
         }
         update_keep_alive(s);
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+		const ms duration = clock::now() - before;
+		if (duration.count() <= 50)
+			std::this_thread::sleep_for(std::chrono::milliseconds(50) - duration);
+
     }
     
 }
