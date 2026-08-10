@@ -5,6 +5,7 @@ add_compile_options(-freflection -std=c++26)
 
 add_subdirectory(netlib_)
 find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
 
 add_executable(lily src/main.cpp src/mc_types.cpp
         src/packet.h
@@ -16,5 +17,5 @@ add_executable(lily src/main.cpp src/mc_types.cpp
         src/json_reader.cpp
         src/block_registry_processing.cpp
 )
-target_link_libraries(lily netlib OpenSSL::Crypto)
+target_link_libraries(lily netlib OpenSSL::Crypto ZLIB::ZLIB)
 

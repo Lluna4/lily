@@ -49,6 +49,7 @@ class user
 			ticks_to_keepalive = 500;
 			sent = false;
 			held_item = 0;
+			compressed = false;
 		}
 
 		bool check_collision_block(position block);
@@ -71,6 +72,7 @@ class user
 		int ticks_to_keepalive;
 		bool sent;
 		short held_item;
+		bool compressed;
 };
 
 inline bool user::check_collision_block(position block)

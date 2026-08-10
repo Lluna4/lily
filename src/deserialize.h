@@ -1,5 +1,8 @@
 #pragma once
+#include <cstddef>
+#include <memory>
 #include <meta>
+#include <zlib.h>
 #include "mc_types.h"
 #include <bit>
 #include <bitset>
@@ -283,10 +286,29 @@ int size_of(T &s)
 	return size;
 }
 
+static packet generate_packet_compressed(int fd, size_t uncompressed_size, size_t size, char *data)
+{
+	char dummy[10];
+
+	int uncompress_size_len = minecraft::write_varint(dummy, uncompressed_size);
+	int packet_len_len = minecraft::write_varint(dummy, uncompress_size_len + size);
+
+	packet pkt;
+	pkt.size = packet_len_len + uncompress_size_len + size;
+	pkt.data = std::make_unique<char []>(pkt.size);
+	pkt.fd = fd;
+	pkt_header head = {.size = minecraft::varint(uncompress_size_len + size), .id = minecraft::varint(uncompressed_size)};
+	int offset = serialize(head, pkt.data.get());
+	memcpy(pkt.data.get() + offset, data, size);
+
+	return std::move(pkt);
+
+}
+
 static packet generate_packet(int fd, int id, size_t size, char *data)
 {
 	char dummy[10];
-	int id_len = minecraft::write_varint(dummy, 0x00);
+	int id_len = minecraft::write_varint(dummy, id);
 
 	int payload_len = size + id_len;
 	int packet_len_varint_size = minecraft::write_varint(dummy, payload_len);
@@ -302,6 +324,24 @@ static packet generate_packet(int fd, int id, size_t size, char *data)
 
 	return std::move(pkt);
 
+}
+
+template <typename T>
+void send_packet_compressed(int fd, int id, T &resp, server &sv)
+{
+	int size = size_of(resp);
+	char dummy[10];
+	int id_len = minecraft::write_varint(dummy, id);
+	std::unique_ptr<char []> dat = std::make_unique<char []>(size + id_len);
+	minecraft::write_varint(dat.get(), id);
+	serialize(resp, &dat.get()[id_len]);
+	unsigned long dest_size = compressBound(size + id_len);
+	std::unique_ptr<char []> dat_compressed = std::make_unique<char []>(dest_size);
+
+	std::println("{}", compress((unsigned char *)dat_compressed.get(), &dest_size, (unsigned char *)dat.get(), size + id_len));
+	packet pkt = generate_packet_compressed(fd, size + id_len, dest_size, dat_compressed.get());
+	pkt.id = id;
+	sv.send_packet(std::move(pkt), fd, id);
 }
 
 template <typename T>

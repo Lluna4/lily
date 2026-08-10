@@ -3,6 +3,7 @@
 #include <print>
 #include <thread>
 #include <meta>
+#include <zlib.h>
 #include "../netlib_/src/networking.h"
 #include "mc_types.h"
 #include "deserialize.h"
@@ -32,6 +33,83 @@ int read_size(packet &pkt, int fd)
     return size.size;
 }
 
+void execute_packet_compressed(packet &pkt, server &sv)
+{
+    int fd = pkt.fd;
+    if (!users.contains(fd))
+    {
+        users.emplace(std::piecewise_construct, std::forward_as_tuple(fd), std::forward_as_tuple(fd));
+    }
+
+    user &u = users.find(fd)->second;
+    char dummy[10];
+    std::unique_ptr<char []> uncompressed = std::make_unique<char []>(pkt.id);
+    int id_size = minecraft::write_varint(dummy, pkt.id);
+    uncompress((unsigned char *)uncompressed.get(), (unsigned long *)&pkt.id, (unsigned char *)(pkt.data.get() + pkt.header_offset), (unsigned long)(pkt.size - id_size));
+
+    minecraft::varint id = minecraft::read_varint(uncompressed.get());
+    pkt.id = id.num;
+    pkt.header_offset = id.size;
+    pkt.data.reset();
+    pkt.data = std::move(uncompressed);
+    if (u.state == STATE::HANDSHAKE)
+    {
+        auto p = packet_definitions_handshake.find(pkt.id);
+        if (p == packet_definitions_handshake.end())
+            return;
+
+        auto pt = p->second.get();
+
+        pt->parse(pkt);
+        pt->handle(sv, users, disconnected, fd);
+    }
+    else if (u.state == STATE::STATUS)
+    {
+        auto p = packet_definitions_status.find(pkt.id);
+        if (p == packet_definitions_status.end())
+            return;
+
+        auto pt = p->second.get();
+
+        pt->parse(pkt);
+        pt->handle(sv, users, disconnected, fd);
+    }
+    else if (u.state == STATE::LOGIN)
+    {
+        auto p = packet_definitions_login.find(pkt.id);
+        if (p == packet_definitions_login.end())
+            return;
+
+        auto pt = p->second.get();
+
+        pt->parse(pkt);
+        pt->handle(sv, users, disconnected, fd);
+    }
+    else if (u.state == STATE::CONFIGURATION)
+    {
+        auto p = packet_definitions_config.find(pkt.id);
+        if (p == packet_definitions_config.end())
+            return;
+
+        auto pt = p->second.get();
+
+        pt->parse(pkt);
+        pt->handle(sv, users, disconnected, fd);
+    }
+    else if (u.state == STATE::PLAY)
+    {
+        auto p = packet_definitions_play.find(pkt.id);
+        if (p == packet_definitions_play.end())
+            return;
+
+        auto pt = p->second.get();
+
+        pt->parse(pkt);
+        pt->handle(sv, users, disconnected, fd);
+    }
+
+}
+
 void execute_packet(packet &pkt, server &sv)
 {
     int fd = pkt.fd;
@@ -41,6 +119,11 @@ void execute_packet(packet &pkt, server &sv)
     }
 
     user &u = users.find(fd)->second;
+    if (u.compressed == true)
+    {
+        execute_packet_compressed(pkt, sv);
+        return;
+    }
 
     if (u.state == STATE::HANDSHAKE)
     {
@@ -108,7 +191,7 @@ void update_keep_alive(server &sv)
         if (u.second.ticks_to_keepalive == 0)
         {
             keep_alive k = {4};
-            send_packet(u.first, 0x2B, k, sv);
+            send_packet_compressed(u.first, 0x2B, k, sv);
             u.second.sent = true;
             log("Sent keep alive", LOG_LEVEL::NORMAL);
         }

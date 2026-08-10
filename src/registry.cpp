@@ -49,7 +49,7 @@ int send_registry(int fd, server &sv)
 						continue;
 					registry_entry register_ent = {.reg_id = std::format("minecraft:{}/{}", entry.path().filename().string(), ent.path().filename().string()),
 													.entries_num = minecraft::varint(1), .entry_id = std::format("minecraft:{}",e.path().stem().string()),.nbt = false};
-					send_packet(fd, 0x7, register_ent, sv);
+					send_packet_compressed(fd, 0x7, register_ent, sv);
 				}
 				continue;
 			}
@@ -71,7 +71,7 @@ int send_registry(int fd, server &sv)
 			{
 				registry_entry register_ent = {.reg_id = std::format("minecraft:{}",entry.path().filename().string()),
 												.entries_num = minecraft::varint(1), .entry_id = std::format("minecraft:{}", ent.path().stem().string()),.nbt = false};
-				send_packet(fd, 0x7, register_ent, sv);
+				send_packet_compressed(fd, 0x7, register_ent, sv);
 			}
 			if (entry.path().stem() == "chat_type")
 			{

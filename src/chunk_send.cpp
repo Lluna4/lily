@@ -54,7 +54,7 @@ void world_thread(server &sv, world &w)
                     minecraft::varint(0),minecraft::varint(0),minecraft::varint(0),
                     minecraft::varint(0),minecraft::varint(0), minecraft::varint(0)};
 
-                send_packet(chunks[i].fd, 0x2C, ch_data, sv);
+                send_packet_compressed(chunks[i].fd, 0x2C, ch_data, sv);
             }
             chunks.clear();
         }

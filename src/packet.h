@@ -227,7 +227,6 @@ struct entity_effect
 	minecraft::varint amplifier;
 	minecraft::varint duration;
 	char flags;
-	bool a;
 };
 
 struct keep_alive
@@ -253,12 +252,17 @@ struct player_position_rotation_play
 	bool flags;
 };
 
+struct set_compression
+{
+	minecraft::varint threshold;
+};
+
 void stream_world(user &u, server &sv)
 {
 	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
 	{
 		set_center_chunk center = {minecraft::varint((unsigned long)(*(unsigned int *)&u.chunk_x)), minecraft::varint((unsigned long)(*(unsigned int *)&u.chunk_z))};
-		send_packet(u.fd, 0x5C, center, sv);
+		send_packet_compressed(u.fd, 0x5C, center, sv);
 	}
 	else
 		return;
@@ -381,8 +385,11 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
             u.uuid.generate(login.name.data.get());
             log(std::format("Name is {}", login.name.data.get()), LOG_LEVEL::NORMAL);
 
+			set_compression compression = {.threshold = minecraft::varint(0)};
+			send_packet(fd, 0x3, compression, sv);
+			u.compressed = true;
             login_success resp = {.uuid = u.uuid, .name = u.name.data(), .size = minecraft::varint(0)};
-			send_packet(fd, 0x2, resp, sv);
+			send_packet_compressed(fd, 0x2, resp, sv);
 		}
 	);
 
@@ -406,10 +413,10 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
             u.view_distance = data.view_distance;
 
 			known_packs known = {.pack_num = minecraft::varint(1), .namesp = "minecraft", .id = "core", .version = "1.21.10"};
-			send_packet(fd, 0xE, known, sv);
+			send_packet_compressed(fd, 0xE, known, sv);
             chat_id = send_registry(fd, sv);
 			std::monostate dat;
-			send_packet(fd, 0x3, dat, sv);
+			send_packet_compressed(fd, 0x3, dat, sv);
 		}
 	);
 
@@ -427,17 +434,17 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 								false, false, minecraft::varint(0), minecraft::varint(64), false
 							};
 			u.y = spawn_y;
-			send_packet(fd, 0x30, log, sv);
+			send_packet_compressed(fd, 0x30, log, sv);
 			player_position pos = {minecraft::varint(1), u.x, u.y, u.z, 0.0f, 0.0f,
 									0.0f, u.yaw, u.pitch, 0};
-			send_packet(fd, 0x46, pos, sv);
+			send_packet_compressed(fd, 0x46, pos, sv);
 			entity_effect effect = {minecraft::varint(fd), minecraft::varint(15),
-				minecraft::varint(1), minecraft::varint(999999), 0x04, false};
-			send_packet(fd, 0x82, effect, sv);
+				minecraft::varint(1), minecraft::varint(999999), 0x04};
+			send_packet_compressed(fd, 0x82, effect, sv);
 			game_event wait_for_chunks = {13, 0.0f};
-			send_packet(fd, 0x26, wait_for_chunks, sv);
+			send_packet_compressed(fd, 0x26, wait_for_chunks, sv);
 			set_center_chunk center = {minecraft::varint(0), minecraft::varint(0)};
-			send_packet(fd, 0x5C, center, sv);
+			send_packet_compressed(fd, 0x5C, center, sv);
 			
 			std::vector<std::pair<int, int>> positions;
             for (int y = -u.view_distance - 2; y < u.view_distance + 2; y++)
