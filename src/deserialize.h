@@ -338,7 +338,7 @@ void send_packet_compressed(int fd, int id, T &resp, server &sv)
 	unsigned long dest_size = compressBound(size + id_len);
 	std::unique_ptr<char []> dat_compressed = std::make_unique<char []>(dest_size);
 
-	std::println("{}", compress((unsigned char *)dat_compressed.get(), &dest_size, (unsigned char *)dat.get(), size + id_len));
+	compress((unsigned char *)dat_compressed.get(), &dest_size, (unsigned char *)dat.get(), size + id_len);
 	packet pkt = generate_packet_compressed(fd, size + id_len, dest_size, dat_compressed.get());
 	pkt.id = id;
 	sv.send_packet(std::move(pkt), fd, id);
