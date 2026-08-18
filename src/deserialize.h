@@ -100,7 +100,14 @@ int serialize(T &s, char *data)
 
 		template for (constexpr auto item: items)
 		{
-			if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, minecraft::varint>)
+    		if constexpr (std::meta::has_template_arguments(std::meta::type_of(item)) && std::meta::template_of(std::meta::type_of(item)) == ^^std::tuple)
+    		{
+    		    template for (auto &i: s.[:item:])
+    		    {
+    				serialize(i, &data[offset]);
+    			}
+    		}
+	        else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, minecraft::varint>)
 			{
 				offset += minecraft::write_varint(&data[offset], s.[:item:].num);
 			}
@@ -215,7 +222,14 @@ int size_of(T &s)
 
 		template for (constexpr auto item: items)
 		{
-			if constexpr (std::meta::type_of(item) == ^^minecraft::varint)
+		    if constexpr (std::meta::has_template_arguments(std::meta::type_of(item)) && std::meta::template_of(std::meta::type_of(item)) == ^^std::tuple)
+    		{
+    		    template for (auto &i: s.[:item:])
+    		    {
+    				size += size_of(i);
+    			}
+    		}
+	        else if constexpr (std::meta::type_of(item) == ^^minecraft::varint)
 			{
 				char dummy[10];
 				size += minecraft::write_varint(dummy, s.[:item:].num);

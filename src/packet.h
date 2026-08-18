@@ -257,6 +257,14 @@ struct set_compression
 	minecraft::varint threshold;
 };
 
+template <typename ...T>
+struct player_info_update
+{
+    unsigned char action;
+    minecraft::varint size;
+    std::tuple<T...> array;
+};
+
 void stream_world(user &u, server &sv)
 {
 	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
