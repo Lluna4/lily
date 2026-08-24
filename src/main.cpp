@@ -14,6 +14,7 @@
 #include "block_registry_processing.h"
 
 std::map<int, user> users;
+std::mutex user_mut;
 std::vector<int> disconnected;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_handshake;
 std::map<int, std::unique_ptr<packet_base>> packet_definitions_status;
@@ -61,7 +62,7 @@ void execute_packet_compressed(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
     else if (u.state == STATE::STATUS)
     {
@@ -72,7 +73,7 @@ void execute_packet_compressed(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
     else if (u.state == STATE::LOGIN)
     {
@@ -83,7 +84,7 @@ void execute_packet_compressed(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
     else if (u.state == STATE::CONFIGURATION)
     {
@@ -94,7 +95,7 @@ void execute_packet_compressed(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
     else if (u.state == STATE::PLAY)
     {
@@ -105,7 +106,7 @@ void execute_packet_compressed(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
 
 }
@@ -134,7 +135,7 @@ void execute_packet(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
     else if (u.state == STATE::STATUS)
     {
@@ -145,7 +146,7 @@ void execute_packet(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
     else if (u.state == STATE::LOGIN)
     {
@@ -156,7 +157,7 @@ void execute_packet(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
     else if (u.state == STATE::CONFIGURATION)
     {
@@ -167,7 +168,7 @@ void execute_packet(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
     else if (u.state == STATE::PLAY)
     {
@@ -178,7 +179,7 @@ void execute_packet(packet &pkt, server &sv)
         auto pt = p->second.get();
 
         pt->parse(pkt);
-        pt->handle(sv, users, disconnected, fd);
+        pt->handle(sv, users, disconnected, fd, user_mut);
     }
 
 }
@@ -249,5 +250,4 @@ int main()
 			std::this_thread::sleep_for(std::chrono::milliseconds(50) - duration);
 
     }
-    
 }

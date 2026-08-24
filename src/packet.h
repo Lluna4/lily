@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <sys/socket.h>
 #include <variant>
 #include "chunk_send.h"
@@ -92,19 +93,19 @@ struct packet_base
 	virtual ~packet_base() = default;
 
 	std::string name;
-	std::function<void(server &sv, std::map<int, user> &users,std::vector<int> &disconnected, int fd)> handle;
+	std::function<void(server &sv, std::map<int, user> &users,std::vector<int> &disconnected, int fd, std::mutex &users_mut)> handle;
 	virtual void parse(packet &pkt) = 0;
 };
 
 template <typename T>
 struct packet_executer: public packet_base
 {
-	packet_executer(std::string n, std::function<void(server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, T &data)> h)
+	packet_executer(std::string n, std::function<void(server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, T &data)> h)
 	{
 		this->name = n;
-		this->handle = [this, h](server& sv, std::map<int, user>& users, std::vector<int>& disconnected, int fd)
+		this->handle = [this, h](server& sv, std::map<int, user>& users, std::vector<int>& disconnected, int fd, std::mutex &users_mut)
 		{
-			h(sv, users, disconnected, fd, this->contents);
+			h(sv, users, disconnected, fd, users_mut , this->contents);
 		};
 	}
 
@@ -265,6 +266,42 @@ struct player_info_update
     std::tuple<T...> array;
 };
 
+template <typename ...T>
+struct players
+{
+    minecraft::uuid uuid;
+    std::tuple<T...> array;
+};
+
+struct add_player
+{
+    std::string name;
+    minecraft::varint size;
+};
+
+struct game_mode
+{
+    minecraft::varint gamemode;
+};
+
+struct update_listed
+{
+    bool listed;
+};
+
+struct spawn_entity
+{
+    minecraft::varint entity_id;
+    minecraft::uuid entity_uuid;
+    minecraft::varint type;
+    double x, y, z;
+    char velocity; //techincally an lpvec3, since there is no velocity implemented, will not be implemented either yet
+    char pitch;
+    char yaw;
+    char head_yaw;
+    minecraft::varint data;
+};
+
 void stream_world(user &u, server &sv)
 {
 	if (u.chunk_x != u.prev_chunk_x || u.chunk_z != u.prev_chunk_z)
@@ -317,7 +354,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 {
 	    packet_definitions_handshake[0x0] = std::make_unique<packet_executer<handshake>>(
 		"Handshake",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, handshake &data)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, handshake &data)
 		{
 			user &u = users.find(fd)->second;
 			log(std::format("Protocol version is {}", data.version.num), LOG_LEVEL::NORMAL);
@@ -339,7 +376,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 	packet_definitions_status[0x00] = std::make_unique<packet_executer<std::monostate>>(
 			"Status request",
-			[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::monostate &data)
+			[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, std::monostate &data)
 			{
 				log("Status request", LOG_LEVEL::NORMAL);
 				user &u = users.find(fd)->second;
@@ -374,7 +411,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 	packet_definitions_status[0x01] = std::make_unique<packet_executer<pong>>(
 		"Ping",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, pong &data)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, pong &data)
 		{
 			log("Ping!", LOG_LEVEL::NORMAL);
 			user &u = users.find(fd)->second;
@@ -386,7 +423,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 	packet_definitions_login[0x00] = std::make_unique<packet_executer<login_start>>(
 		"Login start",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, login_start &login)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, login_start &login)
 		{
 			user &u = users.find(fd)->second;
             u.name = login.name.data.get();
@@ -403,7 +440,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 	packet_definitions_login[0x03] = std::make_unique<packet_executer<std::monostate>>(
 		"Login Acknowledged",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::monostate &data)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, std::monostate &data)
 		{
 			user &u = users.find(fd)->second;
             u.state = STATE::CONFIGURATION;
@@ -413,7 +450,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 	 packet_definitions_config[0x00] = std::make_unique<packet_executer<client_info>>(
 		"Client info",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, client_info &data)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, client_info &data)
 		{
 			user &u = users.find(fd)->second;
             log(std::format("Locale {} View distance {}", data.locale.data.get(), (int)data.view_distance), LOG_LEVEL::NORMAL);
@@ -430,7 +467,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 	packet_definitions_config[0x03] = std::make_unique<packet_executer<std::monostate>>(
 		"Finish config",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::monostate &data)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, std::monostate &data)
 		{
 			user &u = users.find(fd)->second;
             u.state = STATE::PLAY;
@@ -446,6 +483,47 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 			player_position pos = {minecraft::varint(1), u.x, u.y, u.z, 0.0f, 0.0f,
 									0.0f, u.yaw, u.pitch, 0};
 			send_packet_compressed(fd, 0x46, pos, sv);
+			player_info_update<players<add_player, game_mode, update_listed>> info_update;
+			info_update.action = 0x01 | 0x04 | 0x08;
+			info_update.size = minecraft::varint(1);
+			players<add_player, game_mode, update_listed> pla;
+			pla.uuid = u.uuid;
+			std::get<0>(pla.array).name = u.name;
+			std::get<0>(pla.array).size = minecraft::varint(0);
+			std::get<1>(pla.array).gamemode = minecraft::varint(1);
+			std::get<2>(pla.array).listed = true;
+			std::get<0>(info_update.array) = pla;
+			std::unique_lock lock(users_mut);
+			for (auto &user: users)
+			{
+			    if (user.second.state == STATE::PLAY)
+			        send_packet_compressed(user.second.fd, 0x44, info_update, sv);
+			}
+			
+			spawn_entity spawn = {minecraft::varint(fd), u.uuid, minecraft::varint(156), u.x, u.y, u.z, 0, 
+			                        (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256), (char)(u.yaw/360 * 256), minecraft::varint(0)};
+			for (auto &user: users)
+			{
+			    if (user.second.state == STATE::PLAY && user.second.fd != u.fd)
+				{
+			        send_packet_compressed(user.second.fd, 0x1, spawn, sv);
+					player_info_update<players<add_player, game_mode, update_listed>> info_update2;
+					info_update.action = 0x01 | 0x04 | 0x08;
+					info_update.size = minecraft::varint(1);
+					players<add_player, game_mode, update_listed> pla;
+					pla.uuid = user.second.uuid;
+					std::get<0>(pla.array).name = user.second.name;
+					std::get<0>(pla.array).size = minecraft::varint(0);
+					std::get<1>(pla.array).gamemode = minecraft::varint(1);
+					std::get<2>(pla.array).listed = true;
+					std::get<0>(info_update.array) = pla;
+					send_packet_compressed(u.fd, 0x44, info_update2, sv);
+					spawn_entity spawn2 = {minecraft::varint(user.second.fd), user.second.uuid, minecraft::varint(156), user.second.x, user.second.y, user.second.z, 0, 
+					                        (char)(user.second.pitch/360 * 256), (char)(user.second.yaw/360 * 256), (char)(user.second.yaw/360 * 256), minecraft::varint(0)};
+					send_packet_compressed(fd, 0x1, spawn2, sv);
+				}
+			}
+			lock.unlock();
 			entity_effect effect = {minecraft::varint(fd), minecraft::varint(15),
 				minecraft::varint(1), minecraft::varint(999999), 0x04};
 			send_packet_compressed(fd, 0x82, effect, sv);
@@ -469,7 +547,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 	packet_definitions_play[0x1B] = std::make_unique<packet_executer<keep_alive>>(
 		"Keep alive",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, keep_alive &k)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, keep_alive &k)
 		{
 			user &u = users.find(fd)->second;
 			if (k.value != 4 || u.sent == false)
@@ -486,7 +564,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 	);
 	packet_definitions_play[0x1D] = std::make_unique<packet_executer<player_position_play>>(
 		"Set player position",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, player_position_play &pos)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, player_position_play &pos)
 		{
 			user &u = users.find(fd)->second;
 			u.prev_x = u.x;
@@ -509,7 +587,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 
 	packet_definitions_play[0x1E] = std::make_unique<packet_executer<player_position_rotation_play>>(
 		"Set player position and rotation",
-		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, player_position_rotation_play &pos)
+		[](server &sv, std::map<int, user> &users, std::vector<int> &disconnected, int fd, std::mutex &users_mut, player_position_rotation_play &pos)
 		{
 			user &u = users.find(fd)->second;
 			u.prev_x = u.x;
