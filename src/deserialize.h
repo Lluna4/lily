@@ -104,7 +104,7 @@ int serialize(T &s, char *data)
     		{
     		    template for (auto &i: s.[:item:])
     		    {
-    				serialize(i, &data[offset]);
+    				offset += serialize(i, &data[offset]);
     			}
     		}
 	        else if constexpr (std::is_same_v<std::remove_cvref_t<decltype(s.[:item:])>, minecraft::varint>)
