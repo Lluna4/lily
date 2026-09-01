@@ -500,7 +500,7 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 			        send_packet_compressed(user.second.fd, 0x44, info_update, sv);
 			}
 			
-			spawn_entity spawn = {minecraft::varint(fd), u.uuid, minecraft::varint(156), u.x, u.y, u.z, 0, 
+			spawn_entity spawn = {minecraft::varint(fd), u.uuid, minecraft::varint(151), u.x, u.y, u.z, 0, 
 			                        (char)(u.pitch/360 * 256), (char)(u.yaw/360 * 256), (char)(u.yaw/360 * 256), minecraft::varint(0)};
 			for (auto &user: users)
 			{
@@ -508,17 +508,17 @@ void set_packets(std::map<int, std::unique_ptr<packet_base>> &packet_definitions
 				{
 			        send_packet_compressed(user.second.fd, 0x1, spawn, sv);
 					player_info_update<players<add_player, game_mode, update_listed>> info_update2;
-					info_update.action = 0x01 | 0x04 | 0x08;
-					info_update.size = minecraft::varint(1);
+					info_update2.action = 0x01 | 0x04 | 0x08;
+					info_update2.size = minecraft::varint(1);
 					players<add_player, game_mode, update_listed> pla;
 					pla.uuid = user.second.uuid;
 					std::get<0>(pla.array).name = user.second.name;
 					std::get<0>(pla.array).size = minecraft::varint(0);
 					std::get<1>(pla.array).gamemode = minecraft::varint(1);
 					std::get<2>(pla.array).listed = true;
-					std::get<0>(info_update.array) = pla;
+					std::get<0>(info_update2.array) = pla;
 					send_packet_compressed(u.fd, 0x44, info_update2, sv);
-					spawn_entity spawn2 = {minecraft::varint(user.second.fd), user.second.uuid, minecraft::varint(156), user.second.x, user.second.y, user.second.z, 0, 
+					spawn_entity spawn2 = {minecraft::varint(user.second.fd), user.second.uuid, minecraft::varint(151), user.second.x, user.second.y, user.second.z, 0, 
 					                        (char)(user.second.pitch/360 * 256), (char)(user.second.yaw/360 * 256), (char)(user.second.yaw/360 * 256), minecraft::varint(0)};
 					send_packet_compressed(fd, 0x1, spawn2, sv);
 				}
